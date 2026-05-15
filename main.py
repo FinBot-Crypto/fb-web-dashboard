@@ -26,16 +26,68 @@ async def get_dashboard_data():
         conn = get_db_conn()
         cur = conn.cursor()
         
-        # Lucro líquido (DB)
-        cur.execute("SELECT SUM(pnl_pct) FROM trade_log WHERE status = 'CLOSED'")
-        total_pnl = cur.fetchone()[0] or 0
+        # Puxar todos os trades fechados para calcular os dados reais em dinheiro
+        cur.execute("""
+            SELECT symbol, pnl_pct, entry_price, quantity, updated_at 
+            FROM trade_log 
+            WHERE status = 'CLOSED'
+            ORDER BY updated_at ASC;
+        """)
+        rows = cur.fetchall()
         
-        # Win Rate
-        cur.execute("SELECT COUNT(*) FROM trade_log WHERE status = 'CLOSED' AND pnl_pct > 0")
-        wins = cur.fetchone()[0] or 0
-        cur.execute("SELECT COUNT(*) FROM trade_log WHERE status = 'CLOSED'")
-        total_closed = cur.fetchone()[0] or 0
+        total_closed = len(rows)
+        wins = 0
+        losses = 0
+        total_pnl_money = 0
+        
+        curve_data = []
+        coin_stats = {}
+        
+        for row in rows:
+            symbol = row[0]
+            pnl_pct = row[1]
+            entry_price = row[2]
+            quantity = row[3]
+            date = row[4]
+            
+            if pnl_pct is not None and entry_price is not None and quantity is not None:
+                # Calcular dinheiro ganho/perdido
+                invested = entry_price * quantity
+                pnl_money = (pnl_pct / 100) * invested
+                total_pnl_money += pnl_money
+                
+                # Win/Loss
+                if pnl_pct > 0:
+                    wins += 1
+                else:
+                    losses += 1
+                    
+                # Acumular para a curva (em dinheiro!)
+                curve_data.append({
+                    "date": date.strftime("%d/%m") if date else "",
+                    "pnl": round(total_pnl_money, 2)
+                })
+                
+                # Estatísticas por moeda
+                if symbol not in coin_stats:
+                    coin_stats[symbol] = {"symbol": symbol, "pnl": 0, "wins": 0, "losses": 0, "total": 0}
+                    
+                coin_stats[symbol]["pnl"] += pnl_money
+                coin_stats[symbol]["total"] += 1
+                if pnl_pct > 0:
+                    coin_stats[symbol]["wins"] += 1
+                else:
+                    coin_stats[symbol]["losses"] += 1
+                    
         win_rate = (wins / total_closed * 100) if total_closed > 0 else 0
+        
+        # Formatar Rankings
+        # Melhores moedas por PnL em dinheiro
+        best_coins = sorted(coin_stats.values(), key=lambda x: x["pnl"], reverse=True)[:5]
+        worst_coins = sorted(coin_stats.values(), key=lambda x: x["pnl"])[:5]
+        
+        # Mais operadas
+        most_traded = sorted(coin_stats.values(), key=lambda x: x["total"], reverse=True)[:5]
         
         # Posições ativas
         cur.execute("SELECT symbol, entry_price, quantity, created_at FROM trade_log WHERE status = 'OPEN'")
@@ -49,74 +101,27 @@ async def get_dashboard_data():
                 "created_at": row[3].strftime("%d/%m %H:%M") if row[3] else ""
             })
             
-        # Ranking de Moedas (Melhores e Piores)
-        cur.execute("""
-            SELECT symbol, SUM(pnl_pct) as total_pnl, COUNT(*) as trade_count
-            FROM trade_log
-            WHERE status = 'CLOSED'
-            GROUP BY symbol
-            ORDER BY total_pnl DESC;
-        """)
-        ranking_rows = cur.fetchall()
-        
-        best_coins = []
-        worst_coins = []
-        most_traded_list = []
-        
-        for row in ranking_rows:
-            coin = {
-                "symbol": row[0],
-                "pnl": round(row[1], 2),
-                "count": row[2]
-            }
-            best_coins.append(coin)
-            
-        # Ordenar para pegar as piores
-        worst_coins = sorted(best_coins, key=lambda x: x["pnl"])[:5]
-        best_coins = best_coins[:5]
-        
-        # Mais operadas
-        most_traded_sorted = sorted(ranking_rows, key=lambda x: x[2], reverse=True)[:5]
-        most_traded_list = [{"symbol": row[0], "pnl": round(row[1], 2), "count": row[2]} for row in most_traded_sorted]
-        
-        # Dados para a Curva de Patrimônio (Evolução de PnL Acumulado)
-        cur.execute("""
-            SELECT updated_at, pnl_pct 
-            FROM trade_log 
-            WHERE status = 'CLOSED' 
-            ORDER BY updated_at ASC;
-        """)
-        curve_rows = cur.fetchall()
-        curve_data = []
-        cum_pnl = 0
-        for row in curve_rows:
-            if row[1] is not None:
-                cum_pnl += row[1]
-                curve_data.append({
-                    "date": row[0].strftime("%d/%m") if row[0] else "",
-                    "pnl": round(cum_pnl, 2)
-                })
-            
         cur.close()
         conn.close()
         
         return {
-            "total_pnl": round(total_pnl, 2),
+            "total_pnl_money": round(total_pnl_money, 2),
             "win_rate": round(win_rate, 1),
             "total_closed": total_closed,
             "wins": wins,
-            "losses": total_closed - wins,
+            "losses": losses,
             "active_positions": active_positions,
             "patrimony": 97.38,  # Ainda mockado
             "rankings": {
-                "best": best_coins,
-                "worst": worst_coins,
-                "most_traded": most_traded_list
+                "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
+                "worst": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in worst_coins],
+                "most_traded": [{"symbol": x["symbol"], "wins": x["wins"], "losses": x["losses"], "total": x["total"]} for x in most_traded]
             },
             "curve": curve_data
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/api/operations")

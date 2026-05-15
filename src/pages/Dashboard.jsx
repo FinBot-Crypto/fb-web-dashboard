@@ -3,7 +3,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'rec
 
 export default function Dashboard() {
   const [data, setData] = useState({
-    total_pnl: 0,
+    total_pnl_money: 0,
     win_rate: 0,
     total_closed: 0,
     wins: 0,
@@ -45,10 +45,10 @@ export default function Dashboard() {
         {/* Card 2 */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Lucro Líquido (DB)</p>
-          <p className={`text-2xl font-bold mt-2 ${data.total_pnl >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
-            {data.total_pnl >= 0 ? '+' : ''}{data.total_pnl}%
+          <p className={`text-2xl font-bold mt-2 ${data.total_pnl_money >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
+            {data.total_pnl_money >= 0 ? '+' : ''}${data.total_pnl_money}
           </p>
-          <span className="text-accentGreen text-xs font-medium">Sinais positivos</span>
+          <span className="text-accentGreen text-xs font-medium">Soma real em dólares</span>
         </div>
         
         {/* Card 3 */}
@@ -68,13 +68,13 @@ export default function Dashboard() {
 
       {/* Charts Section */}
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
-        <h2 className="text-xl font-bold text-white mb-4">Curva de Patrimônio (Evolução de Lucro Acumulado)</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Curva de Patrimônio (Evolução em Dólar)</h2>
         <div className="h-64">
           {data.curve.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.curve}>
                 <XAxis dataKey="date" stroke="#64748b" />
-                <YAxis stroke="#64748b" unit="%" />
+                <YAxis stroke="#64748b" unit=" $" />
                 <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
                 <Line type="monotone" dataKey="pnl" stroke="#10b981" strokeWidth={2} dot={false} />
               </LineChart>
@@ -132,7 +132,9 @@ export default function Dashboard() {
             {data.rankings.best.map((coin, index) => (
               <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
                 <span className="text-white font-medium">{coin.symbol}</span>
-                <span className="text-accentGreen font-bold">+{coin.pnl}%</span>
+                <span className={`font-bold ${coin.pnl >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
+                  {coin.pnl >= 0 ? '+' : ''}${coin.pnl}
+                </span>
               </div>
             ))}
             {data.rankings.best.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
@@ -148,7 +150,9 @@ export default function Dashboard() {
             {data.rankings.worst.map((coin, index) => (
               <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
                 <span className="text-white font-medium">{coin.symbol}</span>
-                <span className="text-accentRed font-bold">{coin.pnl}%</span>
+                <span className={`font-bold ${coin.pnl >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
+                  {coin.pnl >= 0 ? '+' : ''}${coin.pnl}
+                </span>
               </div>
             ))}
             {data.rankings.worst.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
@@ -164,7 +168,9 @@ export default function Dashboard() {
             {data.rankings.most_traded.map((coin, index) => (
               <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
                 <span className="text-white font-medium">{coin.symbol}</span>
-                <span className="text-slate-400">{coin.count} trades</span>
+                <span className="text-slate-400">
+                  <span className="text-accentGreen">{coin.wins}W</span> / <span className="text-accentRed">{coin.losses}L</span> ({coin.total} total)
+                </span>
               </div>
             ))}
             {data.rankings.most_traded.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
