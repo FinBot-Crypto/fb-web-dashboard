@@ -200,24 +200,29 @@ async def get_shadow_metrics():
         conn = get_db_conn()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT simulations, created_at 
-            FROM shadow_metrics 
-            ORDER BY created_at DESC LIMIT 1;
-        """)
-        row = cur.fetchone()
+        cur.execute("SELECT simulations FROM shadow_metrics")
+        rows = cur.fetchall()
         
-        strategies = []
-        if row:
+        aggregated = {}
+        
+        for row in rows:
             sims = row[0]
-            for sim in sims:
-                strategies.append({
-                    "config": f"SL={sim.get('sl') or 'Nulo'} | TP={sim.get('tp') or 'Nulo'}",
-                    "pnl": round(float(sim.get('pnl', 0)), 2),
-                    "count": sim.get('count', 0)
-                })
+            if isinstance(sims, str):
+                import json
+                sims = json.loads(sims)
                 
-        # Ordenar por PnL
+            for sim in sims:
+                key = f"SL={sim.get('sl') or 'Nulo'} | TP={sim.get('tp') or 'Nulo'}"
+                if key not in aggregated:
+                    aggregated[key] = {"config": key, "pnl": 0, "count": 0}
+                aggregated[key]["pnl"] += float(sim.get('pnl', 0))
+                aggregated[key]["count"] += 1
+                
+        # Converter para lista e ordenar por PnL
+        strategies = list(aggregated.values())
+        for strat in strategies:
+            strat["pnl"] = round(strat["pnl"], 2)
+            
         strategies.sort(key=lambda x: x["pnl"], reverse=True)
         
         cur.close()
