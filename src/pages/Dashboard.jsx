@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 
 export default function Dashboard() {
   const [data, setData] = useState({
@@ -8,7 +9,9 @@ export default function Dashboard() {
     wins: 0,
     losses: 0,
     active_positions: [],
-    patrimony: 97.38
+    patrimony: 97.38,
+    rankings: { best: [], worst: [], most_traded: [] },
+    curve: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -63,16 +66,29 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Charts or Big Section */}
+      {/* Charts Section */}
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
-        <h2 className="text-xl font-bold text-white mb-4">Curva de Patrimônio</h2>
-        <div className="h-64 flex items-center justify-center border-2 border-dashed border-slate-700 rounded-lg">
-          <p className="text-slate-500">[ Gráfico de Linha será renderizado aqui ]</p>
+        <h2 className="text-xl font-bold text-white mb-4">Curva de Patrimônio (Evolução de Lucro Acumulado)</h2>
+        <div className="h-64">
+          {data.curve.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.curve}>
+                <XAxis dataKey="date" stroke="#64748b" />
+                <YAxis stroke="#64748b" unit="%" />
+                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                <Line type="monotone" dataKey="pnl" stroke="#10b981" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full border-2 border-dashed border-slate-700 rounded-lg">
+              <p className="text-slate-500">Nenhum dado histórico para gerar a curva.</p>
+            </div>
+          )}
         </div>
       </div>
       
       {/* Active Positions */}
-      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
         <h2 className="text-xl font-bold text-white mb-4">Posições Abertas Agora</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-slate-300">
@@ -97,11 +113,62 @@ export default function Dashboard() {
               ))}
               {data.active_positions.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="py-4 text-center text-slate-500">Nenhuma posição aberta.</td>
+                  <td colSpan="5" className="py-4 text-center text-slate-500">Nenhuma posição aberta no banco de dados.</td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Rankings Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Melhores Moedas */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <span className="text-accentGreen">🏆</span> Melhores Moedas
+          </h2>
+          <div className="space-y-3">
+            {data.rankings.best.map((coin, index) => (
+              <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
+                <span className="text-white font-medium">{coin.symbol}</span>
+                <span className="text-accentGreen font-bold">+{coin.pnl}%</span>
+              </div>
+            ))}
+            {data.rankings.best.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
+          </div>
+        </div>
+
+        {/* Piores Moedas */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentRed transition-colors">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <span className="text-accentRed">📉</span> Piores Moedas
+          </h2>
+          <div className="space-y-3">
+            {data.rankings.worst.map((coin, index) => (
+              <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
+                <span className="text-white font-medium">{coin.symbol}</span>
+                <span className="text-accentRed font-bold">{coin.pnl}%</span>
+              </div>
+            ))}
+            {data.rankings.worst.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
+          </div>
+        </div>
+
+        {/* Mais Operadas */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <span className="text-blue-400">🔄</span> Mais Operadas
+          </h2>
+          <div className="space-y-3">
+            {data.rankings.most_traded.map((coin, index) => (
+              <div key={index} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2 last:border-b-0 last:pb-0">
+                <span className="text-white font-medium">{coin.symbol}</span>
+                <span className="text-slate-400">{coin.count} trades</span>
+              </div>
+            ))}
+            {data.rankings.most_traded.length === 0 && <p className="text-slate-500 text-sm">Sem dados.</p>}
+          </div>
         </div>
       </div>
     </div>

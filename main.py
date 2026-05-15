@@ -49,6 +49,54 @@ async def get_dashboard_data():
                 "created_at": row[3].strftime("%d/%m %H:%M") if row[3] else ""
             })
             
+        # Ranking de Moedas (Melhores e Piores)
+        cur.execute("""
+            SELECT symbol, SUM(pnl_pct) as total_pnl, COUNT(*) as trade_count
+            FROM trade_log
+            WHERE status = 'CLOSED'
+            GROUP BY symbol
+            ORDER BY total_pnl DESC;
+        """)
+        ranking_rows = cur.fetchall()
+        
+        best_coins = []
+        worst_coins = []
+        most_traded_list = []
+        
+        for row in ranking_rows:
+            coin = {
+                "symbol": row[0],
+                "pnl": round(row[1], 2),
+                "count": row[2]
+            }
+            best_coins.append(coin)
+            
+        # Ordenar para pegar as piores
+        worst_coins = sorted(best_coins, key=lambda x: x["pnl"])[:5]
+        best_coins = best_coins[:5]
+        
+        # Mais operadas
+        most_traded_sorted = sorted(ranking_rows, key=lambda x: x[2], reverse=True)[:5]
+        most_traded_list = [{"symbol": row[0], "pnl": round(row[1], 2), "count": row[2]} for row in most_traded_sorted]
+        
+        # Dados para a Curva de Patrimônio (Evolução de PnL Acumulado)
+        cur.execute("""
+            SELECT updated_at, pnl_pct 
+            FROM trade_log 
+            WHERE status = 'CLOSED' 
+            ORDER BY updated_at ASC;
+        """)
+        curve_rows = cur.fetchall()
+        curve_data = []
+        cum_pnl = 0
+        for row in curve_rows:
+            if row[1] is not None:
+                cum_pnl += row[1]
+                curve_data.append({
+                    "date": row[0].strftime("%d/%m") if row[0] else "",
+                    "pnl": round(cum_pnl, 2)
+                })
+            
         cur.close()
         conn.close()
         
@@ -59,10 +107,17 @@ async def get_dashboard_data():
             "wins": wins,
             "losses": total_closed - wins,
             "active_positions": active_positions,
-            "patrimony": 97.38  # Mockado por enquanto, precisaria somar saldos da Binance
+            "patrimony": 97.38,  # Ainda mockado
+            "rankings": {
+                "best": best_coins,
+                "worst": worst_coins,
+                "most_traded": most_traded_list
+            },
+            "curve": curve_data
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/operations")
 async def get_operations():
