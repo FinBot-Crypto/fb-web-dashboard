@@ -66,21 +66,32 @@ export default function Operations() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.closed.map((order) => {
             const isWin = order.pnl_pct > 0;
+            const invested = order.entry_price * order.quantity;
+            const pnl_money = (order.pnl_pct / 100) * invested;
+            
+            // Tratamento visual para Stop Loss com Lucro (Trailing Stop)
+            let badgeText = order.exit_reason || 'Encerrado';
+            if (order.exit_reason === 'STOP_LOSS' && isWin) {
+              badgeText = 'Trailing Stop';
+            }
+
             return (
               <div key={order.id} className={`bg-slate-800 p-5 rounded-xl border ${isWin ? 'border-accentGreen/30 hover:border-accentGreen' : 'border-accentRed/30 hover:border-accentRed'} transition-colors`}>
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-white font-bold text-lg">{order.symbol}</span>
                   <span className={`text-xs px-2 py-1 rounded-full uppercase ${isWin ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
-                    {order.exit_reason || (isWin ? 'Take Profit' : 'Stop Loss')}
+                    {badgeText}
                   </span>
                 </div>
                 <div className="text-sm text-slate-400 space-y-1">
                   <div className="flex justify-between">
-                    <span>{isWin ? 'Lucro:' : 'Prejuízo:'}</span>
+                    <span>Resultado:</span>
                     <span className={`font-bold ${isWin ? 'text-accentGreen' : 'text-accentRed'}`}>
-                      {isWin ? '+' : ''}{order.pnl_pct}%
+                      {isWin ? '+' : ''}{pnl_money.toFixed(4)} USDT ({isWin ? '+' : ''}{order.pnl_pct.toFixed(2)}%)
                     </span>
                   </div>
+                  <div className="flex justify-between"><span>Investido:</span><span className="text-white">${invested.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Preço Entrada:</span><span className="text-white">${order.entry_price}</span></div>
                   <div className="flex justify-between"><span>Preço Saída:</span><span className="text-white">${order.exit_price}</span></div>
                   <div className="flex justify-between"><span>Fechado em:</span><span className="text-white">{order.updated_at}</span></div>
                 </div>
