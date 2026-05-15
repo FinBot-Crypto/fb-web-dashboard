@@ -21,7 +21,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Instala dependências do Python
-RUN pip install fastapi uvicorn psycopg2-binary nats-py
+RUN pip install fastapi uvicorn psycopg2-binary nats-py ccxt
 
 # Copia o arquivo principal do backend
 COPY main.py .

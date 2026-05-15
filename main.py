@@ -6,6 +6,7 @@ import os
 import json
 import base64
 import nats
+import ccxt
 from nats.js.api import ConsumerConfig
 
 app = FastAPI(title="Crypto Bot Dashboard API")
@@ -104,6 +105,29 @@ async def get_dashboard_data():
         cur.close()
         conn.close()
         
+        # Buscar saldo real na Binance
+        real_patrimony = 97.38 # Fallback
+        try:
+            exchange = ccxt.binance({
+                'apiKey': os.getenv("BINANCE_API_KEY"),
+                'secret': os.getenv("BINANCE_API_SECRET"),
+                'enableRateLimit': True,
+            })
+            balance = exchange.fetch_balance()
+            total_val_usdt = balance['total'].get('USDT', 0)
+            
+            # Somar o valor de outras moedas (se houver)
+            for asset, amount in balance['total'].items():
+                if amount > 0 and asset != 'USDT' and asset != 'BNB':
+                    try:
+                        ticker = exchange.fetch_ticker(f"{asset}/USDT")
+                        total_val_usdt += amount * ticker['last']
+                    except:
+                        pass
+            real_patrimony = round(total_val_usdt, 2)
+        except Exception as e:
+            print(f"Erro ao buscar saldo na Binance: {e}")
+            
         return {
             "total_pnl_money": round(total_pnl_money, 2),
             "win_rate": round(win_rate, 1),
@@ -111,7 +135,7 @@ async def get_dashboard_data():
             "wins": wins,
             "losses": losses,
             "active_positions": active_positions,
-            "patrimony": 97.38,  # Ainda mockado
+            "patrimony": real_patrimony,
             "rankings": {
                 "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
                 "worst": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in worst_coins],
