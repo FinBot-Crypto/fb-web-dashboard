@@ -295,9 +295,19 @@ async def get_status():
         }
 
 # Servir arquivos estáticos do Frontend (React)
-# Isso deve ficar por último para não interceptar as rotas da API
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 if os.path.exists("./dist"):
-    app.mount("/", StaticFiles(directory="./dist", html=True), name="static")
+    app.mount("/assets", StaticFiles(directory="./dist/assets"), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Se é rota da API, deixa passar (as rotas acima capturam primeiro)
+        file_path = f"./dist/{full_path}" if full_path else "./dist/index.html"
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse("./dist/index.html")
 else:
     @app.get("/")
     def read_root():

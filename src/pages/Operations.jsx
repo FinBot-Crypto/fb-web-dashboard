@@ -75,13 +75,16 @@ export default function Operations() {
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
-    fetch('/api/operations')
-      .then(res => res.json())
-      .then(data => {
-        setData(data);
-        setLoading(false);
-      })
-      .catch(err => console.error(err));
+    const fetchData = () => {
+      fetch('/api/operations')
+        .then(res => res.json())
+        .then(data => setData(data))
+        .catch(err => console.error(err));
+    };
+    fetchData();
+    setLoading(false);
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
