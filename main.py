@@ -162,6 +162,40 @@ async def get_operations():
         """)
         rows = cur.fetchall()
         
+        # Buscar SL/TP do KV (NATS) e preços atuais da Binance
+        kv_data = {}
+        current_prices = {}
+        try:
+            nc = await nats.connect(NATS_URL)
+            js = nc.jetstream()
+            kv = await js.key_value("active_positions")
+            keys = await kv.keys()
+            for k in keys:
+                entry = await kv.get(k)
+                pos = json.loads(entry.value.decode())
+                sym = pos.get("symbol", "")
+                kv_data[sym] = {
+                    "sl_price": pos.get("sl_price"),
+                    "tp_price": pos.get("tp_price")
+                }
+            await nc.close()
+            
+            # Buscar preços atuais para todas as moedas abertas
+            exchange = ccxt.binance({
+                'apiKey': os.getenv("BINANCE_API_KEY"),
+                'secret': os.getenv("BINANCE_API_SECRET"),
+                'enableRateLimit': True,
+            })
+            for row in rows:
+                if row[2] == "OPEN":
+                    try:
+                        ticker = exchange.fetch_ticker(row[1])
+                        current_prices[row[1]] = ticker["last"]
+                    except:
+                        current_prices[row[1]] = None
+        except Exception as e:
+            print(f"Erro ao buscar KV/preços: {e}")
+        
         open_orders = []
         closed_orders = []
         
@@ -179,6 +213,11 @@ async def get_operations():
                 "updated_at": row[9].strftime("%d/%m %H:%M") if row[9] else ""
             }
             if row[2] == "OPEN":
+                # Adicionar SL/TP do KV
+                kv_info = kv_data.get(row[1], {})
+                order["sl_price"] = kv_info.get("sl_price")
+                order["tp_price"] = kv_info.get("tp_price")
+                order["current_price"] = current_prices.get(row[1])
                 open_orders.append(order)
             else:
                 closed_orders.append(order)
@@ -189,7 +228,6 @@ async def get_operations():
         return {
             "open": open_orders,
             "closed": closed_orders,
-            "balance": 80.38  # Mockado por enquanto
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
