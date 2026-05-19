@@ -104,19 +104,30 @@ export default function Operations() {
           {data.open.map((order) => {
             const current = order.current_price;
             const isProfit = current && current >= order.entry_price;
+            const pnlDollar = current ? (current - order.entry_price) * order.quantity : 0;
+            const pnlPct = current ? ((current / order.entry_price) - 1) * 100 : 0;
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
                 className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
               >
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-center mb-2">
                   <span className="text-white font-bold text-lg">{order.symbol}</span>
                   <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
                     {isProfit ? 'Lucro' : 'Perda'}
                   </span>
                 </div>
-                <div className="text-sm text-slate-400 space-y-1">
-                  <div className="flex justify-between"><span>Quantidade:</span><span className="text-white">{order.quantity}</span></div>
+                {/* Mini-card central com PnL em $ e % */}
+                <div className={`text-center py-4 my-2 rounded-lg ${isProfit ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                  <div className={`text-3xl font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                    {isProfit ? '+' : ''}{pnlDollar.toFixed(4)} USDT
+                  </div>
+                  <div className={`text-sm mt-1 ${isProfit ? 'text-green-300' : 'text-red-300'}`}>
+                    {isProfit ? '+' : ''}{pnlPct.toFixed(2)}% da entrada
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500 space-y-1">
+                  <div className="flex justify-between"><span>Qtd:</span><span className="text-white">{order.quantity}</span></div>
                   <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
                   <div className="flex justify-between"><span>Atual:</span><span className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>${current?.toFixed(6) || '...'}</span></div>
                 </div>
