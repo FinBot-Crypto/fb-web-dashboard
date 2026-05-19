@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { Spinner, playNewTradeSound } from '../components/UI';
 
 function SLTPBar({ current, sl, tp, entry }) {
   if (!sl || !tp || !current) return null;
@@ -11,16 +12,13 @@ function SLTPBar({ current, sl, tp, entry }) {
   return (
     <div className="mt-3">
       <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>SL ${sl}</span>
-        <span className="text-slate-400">Entry ${entry}</span>
-        <span>TP ${tp}</span>
+        <span>SL ${sl?.toFixed(6)}</span>
+        <span className="text-slate-400">Entry ${entry?.toFixed(6)}</span>
+        <span>TP ${tp?.toFixed(6)}</span>
       </div>
       <div className="h-3 bg-slate-700 rounded-full relative overflow-hidden">
         <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
-        <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center">
-          {/* Marcador de entrada */}
-          <div className="absolute top-0 bottom-0 w-0.5 bg-white/50" style={{ left: `${((entry - sl) / range) * 100}%` }} />
-        </div>
+        <div className="absolute top-0 bottom-0 w-0.5 bg-white/50" style={{ left: `${((entry - sl) / range) * 100}%` }} />
       </div>
       <div className="text-center text-xs text-slate-400 mt-1">
         ${current?.toFixed(6)} ({clamped.toFixed(0)}% até TP)
@@ -73,29 +71,63 @@ export default function Operations() {
   const [data, setData] = useState({ open: [], closed: [] });
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const prevOpenCount = useRef(0);
 
   useEffect(() => {
     const fetchData = () => {
       fetch('/api/operations')
         .then(res => res.json())
-        .then(data => setData(data))
+        .then(data => {
+          // Som quando nova ordem entra
+          if (data.open.length > prevOpenCount.current && prevOpenCount.current > 0) {
+            playNewTradeSound();
+          }
+          prevOpenCount.current = data.open.length;
+          setData(data);
+          setLoading(false);
+        })
         .catch(err => console.error(err));
     };
     fetchData();
-    setLoading(false);
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return <div className="p-6 text-white">Carregando operações...</div>;
-  }
+  if (loading) return <div className="p-6"><Spinner /></div>;
+
+  const totalInvested = data.open.reduce((sum, o) => sum + (o.entry_price * o.quantity), 0);
+  const totalCurrent = data.open.reduce((sum, o) => sum + ((o.current_price || o.entry_price) * o.quantity), 0);
+  const totalReturn = totalCurrent - totalInvested;
 
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Operações</h1>
 
       {selectedOrder && <TradeChart order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
+
+      {/* Card de Resumo */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <div className="text-slate-400 text-sm">Em operação</div>
+          <div className="text-white text-xl font-bold">${totalInvested.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-slate-400 text-sm">Valor atual</div>
+          <div className="text-white text-xl font-bold">${totalCurrent.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-slate-400 text-sm">Retorno</div>
+          <div className={`text-xl font-bold ${totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(4)} USDT
+          </div>
+        </div>
+        <div>
+          <div className="text-slate-400 text-sm">% Retorno</div>
+          <div className={`text-xl font-bold ${totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {totalReturn >= 0 ? '+' : ''}{(totalInvested > 0 ? (totalReturn / totalInvested * 100) : 0).toFixed(2)}%
+          </div>
+        </div>
+      </div>
 
       {/* Ordens Abertas */}
       <div className="mb-8">
@@ -106,13 +138,21 @@ export default function Operations() {
             const isProfit = current && current >= order.entry_price;
             const pnlDollar = current ? (current - order.entry_price) * order.quantity : 0;
             const pnlPct = current ? ((current / order.entry_price) - 1) * 100 : 0;
+            const wlInfo = order.coin_total > 0 
+              ? <span className={`text-xs ${order.coin_wins >= order.coin_losses ? 'text-green-400' : 'text-red-400'}`}>
+                  ({order.coin_wins}W/{order.coin_losses}L)
+                </span>
+              : null;
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
                 className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
               >
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-white font-bold text-lg">{order.symbol}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold text-lg">{order.symbol}</span>
+                    {wlInfo}
+                  </div>
                   <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
                     {isProfit ? 'Lucro' : 'Perda'}
                   </span>
