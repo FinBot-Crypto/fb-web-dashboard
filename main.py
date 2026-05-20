@@ -154,23 +154,23 @@ async def get_operations():
         conn = get_db_conn()
         cur = conn.cursor()
         
-    cur.execute("""
-        SELECT id, symbol, status, entry_price, exit_price, quantity, 
-               exit_reason, pnl_pct, created_at, updated_at
-        FROM trade_log 
-        ORDER BY created_at DESC LIMIT 50;
-    """)
-    rows = cur.fetchall()
-    
-    # W/L por moeda (para mostrar histórico nos cards)
-    cur.execute("""
-        SELECT symbol, COUNT(*) as total, 
-               SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END) as wins,
-               SUM(CASE WHEN pnl_pct < 0 THEN 1 ELSE 0 END) as losses
-        FROM trade_log WHERE status = 'CLOSED'
-        GROUP BY symbol
-    """)
-    coin_wl = {r[0]: {"total": r[1], "wins": r[2] or 0, "losses": r[3] or 0} for r in cur.fetchall()}
+        cur.execute("""
+            SELECT id, symbol, status, entry_price, exit_price, quantity, 
+                   exit_reason, pnl_pct, created_at, updated_at
+            FROM trade_log 
+            ORDER BY created_at DESC LIMIT 50;
+        """)
+        rows = cur.fetchall()
+        
+        # W/L por moeda (para mostrar histórico nos cards)
+        cur.execute("""
+            SELECT symbol, COUNT(*) as total, 
+                   SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END) as wins,
+                   SUM(CASE WHEN pnl_pct < 0 THEN 1 ELSE 0 END) as losses
+            FROM trade_log WHERE status = 'CLOSED'
+            GROUP BY symbol
+        """)
+        coin_wl = {r[0]: {"total": r[1], "wins": r[2] or 0, "losses": r[3] or 0} for r in cur.fetchall()}
         
         # Buscar SL/TP do KV (NATS) e preços atuais da Binance
         kv_data = {}
