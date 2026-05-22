@@ -252,38 +252,239 @@ async def get_shadow_metrics():
     try:
         conn = get_db_conn()
         cur = conn.cursor()
-        
-        cur.execute("SELECT simulations FROM shadow_metrics")
+
+        cur.execute("SELECT simulations, tier, rsi_entry, hour_entry FROM shadow_metrics")
         rows = cur.fetchall()
-        
-        aggregated = {}
-        
-        for row in rows:
-            sims = row[0]
-            if isinstance(sims, str):
-                import json
-                sims = json.loads(sims)
-                
-            for sim in sims:
-                key = f"SL={sim.get('sl') or 'Nulo'} | TP={sim.get('tp') or 'Nulo'}"
-                if key not in aggregated:
-                    aggregated[key] = {"config": key, "pnl": 0, "count": 0}
-                aggregated[key]["pnl"] += float(sim.get('pnl', 0))
-                aggregated[key]["count"] += 1
-                
-        # Converter para lista e ordenar por PnL
-        strategies = list(aggregated.values())
-        for strat in strategies:
-            strat["pnl"] = round(strat["pnl"], 2)
-            
-        strategies.sort(key=lambda x: x["pnl"], reverse=True)
-        
         cur.close()
         conn.close()
-        
-        return {"strategies": strategies[:10]}
+
+        if not rows:
+            return {
+                "total_simulations": 0,
+                "ranking_sltp": [],
+                "ranking_tier": [],
+                "ranking_rsi": [],
+                "ranking_hour": [],
+                "best_combo": None,
+            }
+
+        # --- Agregação geral SL/TP ---
+        sltp_agg = {}
+        # --- Por Tier ---
+        tier_agg = {}
+        # --- Por Faixa RSI ---
+        rsi_buckets = {
+            "<25": {"label": "< 25", "pnls": []},
+            "25-30": {"label": "25–30", "pnls": []},
+            "30-35": {"label": "30–35", "pnls": []},
+            "35-38": {"label": "35–38", "pnls": []},
+        }
+        # --- Por Hora (UTC) ---
+        hour_agg = {h: {"pnls": []} for h in range(24)}
+        # --- Combinações para best_combo ---
+        combo_agg = {}
+
+        for row in rows:
+            sims_raw, tier, rsi_entry, hour_entry = row
+            if isinstance(sims_raw, str):
+                sims = json.loads(sims_raw)
+            else:
+                sims = sims_raw or []
+
+            tier = tier or "Desconhecido"
+            rsi_entry = float(rsi_entry) if rsi_entry else None
+            hour_entry = int(hour_entry) if hour_entry is not None else None
+
+            # Determinar faixa RSI
+            rsi_label = None
+            if rsi_entry is not None:
+                if rsi_entry < 25:
+                    rsi_label = "<25"
+                elif rsi_entry < 30:
+                    rsi_label = "25-30"
+                elif rsi_entry < 35:
+                    rsi_label = "30-35"
+                else:
+                    rsi_label = "35-38"
+
+            # Determinar janela horária
+            hour_window = None
+            if hour_entry is not None:
+                if 0 <= hour_entry < 6:
+                    hour_window = "Madrugada (0–6h)"
+                elif 6 <= hour_entry < 12:
+                    hour_window = "Manhã (6–12h)"
+                elif 12 <= hour_entry < 18:
+                    hour_window = "Tarde (12–18h)"
+                else:
+                    hour_window = "Noite (18–24h)"
+
+            for sim in sims:
+                pnl = float(sim.get("pnl", 0))
+                sl = sim.get("sl")
+                tp = sim.get("tp")
+                key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
+
+                # SL/TP agregado
+                if key not in sltp_agg:
+                    sltp_agg[key] = {"config": key, "sl": sl, "tp": tp, "pnls": []}
+                sltp_agg[key]["pnls"].append(pnl)
+
+                # Por Tier
+                if tier not in tier_agg:
+                    tier_agg[tier] = {"pnls": []}
+                tier_agg[tier]["pnls"].append(pnl)
+
+                # Por RSI
+                if rsi_label and rsi_label in rsi_buckets:
+                    rsi_buckets[rsi_label]["pnls"].append(pnl)
+
+                # Por Hora
+                if hour_entry is not None:
+                    hour_agg[hour_entry]["pnls"].append(pnl)
+
+                # Combinações multi-dimensionais
+                if tier and rsi_label and hour_window:
+                    combo_key = f"{tier} | RSI {rsi_buckets[rsi_label]['label']} | {hour_window}"
+                    if combo_key not in combo_agg:
+                        combo_agg[combo_key] = {"label": combo_key, "pnls": []}
+                    combo_agg[combo_key]["pnls"].append(pnl)
+
+        # --- Formatar ranking SL/TP ---
+        def fmt_sltp(agg_dict, limit=15):
+            out = []
+            for v in agg_dict.values():
+                pnls = v["pnls"]
+                n = len(pnls)
+                if n == 0:
+                    continue
+                avg = sum(pnls) / n
+                wins = sum(1 for p in pnls if p > 0)
+                out.append({
+                    "config": v["config"],
+                    "sl": v.get("sl"),
+                    "tp": v.get("tp"),
+                    "avg_pnl": round(avg, 3),
+                    "win_rate": round(wins / n * 100, 1),
+                    "count": n,
+                })
+            out.sort(key=lambda x: x["avg_pnl"], reverse=True)
+            return out[:limit]
+
+        ranking_sltp = fmt_sltp(sltp_agg)
+
+        # --- Formatar Tier ---
+        ranking_tier = []
+        for tier_name, v in tier_agg.items():
+            pnls = v["pnls"]
+            n = len(pnls)
+            if n == 0:
+                continue
+            avg = sum(pnls) / n
+            wins = sum(1 for p in pnls if p > 0)
+            ranking_tier.append({
+                "tier": tier_name,
+                "avg_pnl": round(avg, 3),
+                "win_rate": round(wins / n * 100, 1),
+                "count": n,
+            })
+        ranking_tier.sort(key=lambda x: x["avg_pnl"], reverse=True)
+
+        # --- Formatar RSI ---
+        ranking_rsi = []
+        for bucket_key in ["<25", "25-30", "30-35", "35-38"]:
+            v = rsi_buckets[bucket_key]
+            pnls = v["pnls"]
+            n = len(pnls)
+            avg = (sum(pnls) / n) if n > 0 else 0
+            wins = sum(1 for p in pnls if p > 0) if n > 0 else 0
+            ranking_rsi.append({
+                "range": v["label"],
+                "avg_pnl": round(avg, 3),
+                "win_rate": round(wins / n * 100, 1) if n > 0 else 0,
+                "count": n,
+            })
+
+        # --- Formatar Hora ---
+        window_agg = {}
+        for h, v in hour_agg.items():
+            pnls = v["pnls"]
+            if not pnls:
+                continue
+            if 0 <= h < 6:
+                win_label = "Madrugada (0–6h)"
+            elif 6 <= h < 12:
+                win_label = "Manhã (6–12h)"
+            elif 12 <= h < 18:
+                win_label = "Tarde (12–18h)"
+            else:
+                win_label = "Noite (18–24h)"
+            if win_label not in window_agg:
+                window_agg[win_label] = {"pnls": []}
+            window_agg[win_label]["pnls"].extend(pnls)
+
+        # Também retornar hora por hora para o heatmap
+        ranking_hour_raw = []
+        for h in range(24):
+            pnls = hour_agg[h]["pnls"]
+            n = len(pnls)
+            avg = (sum(pnls) / n) if n > 0 else None
+            ranking_hour_raw.append({
+                "hour": h,
+                "avg_pnl": round(avg, 3) if avg is not None else None,
+                "count": n,
+            })
+
+        ranking_hour_windows = []
+        for wlabel in ["Madrugada (0–6h)", "Manhã (6–12h)", "Tarde (12–18h)", "Noite (18–24h)"]:
+            v = window_agg.get(wlabel, {"pnls": []})
+            pnls = v["pnls"]
+            n = len(pnls)
+            avg = (sum(pnls) / n) if n > 0 else 0
+            wins = sum(1 for p in pnls if p > 0) if n > 0 else 0
+            ranking_hour_windows.append({
+                "window": wlabel,
+                "avg_pnl": round(avg, 3),
+                "win_rate": round(wins / n * 100, 1) if n > 0 else 0,
+                "count": n,
+            })
+
+        # --- Best Combo ---
+        best_combo = None
+        if combo_agg:
+            best_candidates = []
+            for v in combo_agg.values():
+                pnls = v["pnls"]
+                n = len(pnls)
+                if n < 3:  # Mínimo de 3 amostras para ser significativo
+                    continue
+                avg = sum(pnls) / n
+                wins = sum(1 for p in pnls if p > 0)
+                best_candidates.append({
+                    "label": v["label"],
+                    "avg_pnl": round(avg, 3),
+                    "win_rate": round(wins / n * 100, 1),
+                    "count": n,
+                })
+            if best_candidates:
+                best_candidates.sort(key=lambda x: x["avg_pnl"], reverse=True)
+                best_combo = best_candidates[0]
+
+        total_simulations = sum(v["count"] for v in sltp_agg.values())
+
+        return {
+            "total_simulations": total_simulations,
+            "ranking_sltp": ranking_sltp,
+            "ranking_tier": ranking_tier,
+            "ranking_rsi": ranking_rsi,
+            "ranking_hour": ranking_hour_raw,
+            "ranking_hour_windows": ranking_hour_windows,
+            "best_combo": best_combo,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.get("/api/status")
 async def get_status():
