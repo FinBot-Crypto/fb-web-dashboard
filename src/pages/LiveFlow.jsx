@@ -10,8 +10,8 @@ const LABELS = {
 
 function adjustTime(utcStr, offsetHours = -3) {
   try {
-    const parts = utcStr.split(/[- :]/);
-    if (parts.length < 6) return utcStr;
+    const ts = utcStr.split(',')[0].replace('T', ' ');  // remove milissegundos
+    const parts = ts.split(/[- :]/);
     const d = new Date(Date.UTC(+parts[0], +parts[1]-1, +parts[2], +parts[3], +parts[4], +parts[5]));
     d.setHours(d.getHours() + offsetHours);
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
