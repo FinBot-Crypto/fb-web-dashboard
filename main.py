@@ -521,22 +521,21 @@ async def get_shadow_metrics():
 @app.get("/api/live-flow")
 async def get_live_flow():
     """Retorna as últimas ações do pipeline (logs dos containers)."""
-    import subprocess
+    import docker as dk
     try:
+        client = dk.from_env()
         logs = {}
         containers = {
             "market": "fb-market-selection",
-            "strategy": "fb-strategy-ml", 
+            "strategy": "fb-strategy-ml",
             "decision": "fb-decision-engine",
             "trade": "fb-trade-decision",
             "exec": "fb-execution",
         }
         for key, name in containers.items():
             try:
-                output = subprocess.check_output(
-                    ["docker", "logs", name, "--tail", "8"], 
-                    stderr=subprocess.STDOUT, timeout=5
-                ).decode()
+                c = client.containers.get(name)
+                output = c.logs(tail=8).decode()
                 lines = [l.strip() for l in output.split('\n') if l.strip()]
                 logs[key] = lines[-8:]
             except:
