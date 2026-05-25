@@ -78,7 +78,7 @@ export default function Dashboard() {
       <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
         <h2 className="text-xl font-bold text-white mb-4">Curva de Patrimônio (Evolução em Dólar)</h2>
         <div className="h-64">
-          {data.curve.length > 0 ? (
+          {data.curve?.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.curve}>
                 <XAxis dataKey="date" stroke="#64748b" />
