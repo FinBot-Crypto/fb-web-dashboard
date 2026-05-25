@@ -116,12 +116,15 @@ async def get_dashboard_data():
             balance = exchange.fetch_balance()
             total_val_usdt = balance['total'].get('USDT', 0)
             
-            # Somar o valor de outras moedas (se houver)
+            # Somar o valor de outras moedas (incluindo BNB)
             for asset, amount in balance['total'].items():
-                if amount > 0 and asset != 'USDT' and asset != 'BNB':
+                if amount > 0 and asset != 'USDT':
                     try:
-                        ticker = exchange.fetch_ticker(f"{asset}/USDT")
-                        total_val_usdt += amount * ticker['last']
+                        if asset == 'BNB':
+                            total_val_usdt += amount * exchange.fetch_ticker("BNB/USDT")['last']
+                        else:
+                            ticker = exchange.fetch_ticker(f"{asset}/USDT")
+                            total_val_usdt += amount * ticker['last']
                     except:
                         pass
             real_patrimony = round(total_val_usdt, 2)
@@ -470,7 +473,7 @@ async def get_shadow_metrics():
                 best_candidates.sort(key=lambda x: x["avg_pnl"], reverse=True)
                 best_combo = best_candidates[0]
 
-        total_simulations = sum(v["count"] for v in sltp_agg.values())
+        total_simulations = sum(len(v["pnls"]) for v in sltp_agg.values())
 
         return {
             "total_simulations": total_simulations,
