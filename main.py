@@ -161,20 +161,28 @@ async def get_dashboard_data():
 
 
 @app.get("/api/operations")
-async def get_operations():
+async def get_operations(page: int = 1, limit: int = 50):
     try:
         conn = get_db_conn()
         cur = conn.cursor()
+        
+        # Contagem total
+        cur.execute("SELECT COUNT(*) FROM trade_log WHERE status = 'CLOSED'")
+        total_closed = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM trade_log WHERE status = 'OPEN'")
+        total_open = cur.fetchone()[0]
+        
+        offset = (page - 1) * limit
         
         cur.execute("""
             SELECT id, symbol, status, entry_price, exit_price, quantity, 
                    exit_reason, pnl_pct, created_at, updated_at
             FROM trade_log 
-            ORDER BY created_at DESC LIMIT 50;
-        """)
+            ORDER BY created_at DESC LIMIT %s OFFSET %s;
+        """, (limit, offset))
         rows = cur.fetchall()
         
-        # W/L por moeda (para mostrar histórico nos cards)
+        # W/L por moeda
         cur.execute("""
             SELECT symbol, COUNT(*) as total, 
                    SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END) as wins,
@@ -183,6 +191,13 @@ async def get_operations():
             GROUP BY symbol
         """)
         coin_wl = {r[0]: {"total": r[1], "wins": r[2] or 0, "losses": r[3] or 0} for r in cur.fetchall()}
+        
+        # Total PnL real (todos os fechados)
+        cur.execute("""
+            SELECT COALESCE(SUM((pnl_pct/100) * entry_price * quantity), 0)
+            FROM trade_log WHERE status = 'CLOSED' AND entry_price IS NOT NULL AND quantity IS NOT NULL
+        """)
+        total_pnl = round(cur.fetchone()[0], 2)
         
         # Buscar SL/TP do KV (NATS) e preços atuais da Binance
         kv_data = {}
@@ -255,6 +270,11 @@ async def get_operations():
         return {
             "open": open_orders,
             "closed": closed_orders,
+            "total_open": total_open,
+            "total_closed": total_closed,
+            "total_pnl": total_pnl,
+            "page": page,
+            "limit": limit,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -497,6 +517,33 @@ async def get_shadow_metrics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+@app.get("/api/live-flow")
+async def get_live_flow():
+    """Retorna as últimas ações do pipeline (logs dos containers)."""
+    import subprocess
+    try:
+        logs = {}
+        containers = {
+            "market": "fb-market-selection",
+            "strategy": "fb-strategy-ml", 
+            "decision": "fb-decision-engine",
+            "trade": "fb-trade-decision",
+            "exec": "fb-execution",
+        }
+        for key, name in containers.items():
+            try:
+                output = subprocess.check_output(
+                    ["docker", "logs", name, "--tail", "8"], 
+                    stderr=subprocess.STDOUT, timeout=5
+                ).decode()
+                lines = [l.strip() for l in output.split('\n') if l.strip()]
+                logs[key] = lines[-8:]
+            except:
+                logs[key] = []
+        return {"logs": logs}
+    except Exception as e:
+        return {"logs": {}, "error": str(e)}
 
 @app.get("/api/status")
 async def get_status():
