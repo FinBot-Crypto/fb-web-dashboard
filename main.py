@@ -107,6 +107,7 @@ async def get_dashboard_data():
         
         # Buscar saldo real na Binance
         real_patrimony = 97.38 # Fallback
+        bnb_usd = 0
         try:
             exchange = ccxt.binance({
                 'apiKey': os.getenv("BINANCE_API_KEY"),
