@@ -106,7 +106,7 @@ async def get_dashboard_data():
         conn.close()
         
         # Buscar saldo real na Binance
-        real_patrimony = 97.38 # Fallback
+        real_patrimony = 0
         bnb_usd = 0
         try:
             exchange = ccxt.binance({
@@ -131,7 +131,6 @@ async def get_dashboard_data():
             real_patrimony = round(total_val_usdt, 2)
             # Saldo BNB separado
             bnb_amount = balance['total'].get('BNB', 0)
-            bnb_usd = 0
             if bnb_amount > 0:
                 try:
                     bnb_usd = round(bnb_amount * exchange.fetch_ticker("BNB/USDT")['last'], 2)
