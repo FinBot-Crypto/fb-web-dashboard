@@ -127,7 +127,15 @@ async def get_dashboard_data():
                             total_val_usdt += amount * ticker['last']
                     except:
                         pass
-            real_patrimony = round(total_val_usdt, 2)
+             real_patrimony = round(total_val_usdt, 2)
+            # Saldo BNB separado
+            bnb_amount = balance['total'].get('BNB', 0)
+            bnb_usd = 0
+            if bnb_amount > 0:
+                try:
+                    bnb_usd = round(bnb_amount * exchange.fetch_ticker("BNB/USDT")['last'], 2)
+                except:
+                    pass
         except Exception as e:
             print(f"Erro ao buscar saldo na Binance: {e}")
             
@@ -139,6 +147,7 @@ async def get_dashboard_data():
             "losses": losses,
             "active_positions": active_positions,
             "patrimony": real_patrimony,
+            "bnb_balance": bnb_usd,
             "rankings": {
                 "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
                 "worst": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in worst_coins],

@@ -10,6 +10,7 @@ export default function Dashboard() {
     losses: 0,
     active_positions: [],
     patrimony: 97.38,
+    bnb_balance: 0,
     rankings: { best: [], worst: [], most_traded: [] },
     curve: []
   });
@@ -34,15 +35,22 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold text-white mb-6">Dashboard</h1>
       
       {/* KPIs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Card 1 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        {/* Card 1 - Patrimônio */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Patrimônio Total</p>
           <p className="text-2xl font-bold text-white mt-2">${data.patrimony}</p>
-          <span className="text-accentRed text-xs font-medium">-2.62% vs inicial</span>
+          <span className="text-slate-400 text-xs font-medium">Carteira Binance</span>
         </div>
         
-        {/* Card 2 */}
+        {/* Card 2 - BNB Taxas */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-amber-500/30 hover:border-amber-500 transition-colors cursor-pointer">
+          <p className="text-slate-400 text-sm font-medium">BNB (Taxas)</p>
+          <p className="text-2xl font-bold text-amber-400 mt-2">${data.bnb_balance}</p>
+          <span className="text-slate-400 text-xs font-medium">Colchão p/ taxas</span>
+        </div>
+        
+        {/* Card 3 */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Lucro Líquido (DB)</p>
           <p className={`text-2xl font-bold mt-2 ${data.total_pnl_money >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
@@ -51,14 +59,14 @@ export default function Dashboard() {
           <span className="text-accentGreen text-xs font-medium">Soma real em dólares</span>
         </div>
         
-        {/* Card 3 */}
+        {/* Card 4 */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Win Rate Geral</p>
           <p className="text-2xl font-bold text-white mt-2">{data.win_rate}%</p>
           <span className="text-slate-400 text-xs font-medium">{data.wins} vitórias / {data.losses} derrotas</span>
         </div>
         
-        {/* Card 4 */}
+        {/* Card 5 */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Total de Trades</p>
           <p className="text-2xl font-bold text-white mt-2">{data.total_closed}</p>
