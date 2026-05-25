@@ -127,7 +127,7 @@ async def get_dashboard_data():
                             total_val_usdt += amount * ticker['last']
                     except:
                         pass
-             real_patrimony = round(total_val_usdt, 2)
+            real_patrimony = round(total_val_usdt, 2)
             # Saldo BNB separado
             bnb_amount = balance['total'].get('BNB', 0)
             bnb_usd = 0
