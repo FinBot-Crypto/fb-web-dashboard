@@ -68,17 +68,17 @@ function TradeChart({ order, onClose }) {
 }
 
 export default function Operations() {
-  const [data, setData] = useState({ open: [], closed: [] });
+  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [page, setPage] = useState(1);
   const prevOpenCount = useRef(0);
 
   useEffect(() => {
     const fetchData = () => {
-      fetch('/api/operations')
+      fetch(`/api/operations?page=${page}&limit=50`)
         .then(res => res.json())
         .then(data => {
-          // Som quando nova ordem entra
           if (data.open.length > prevOpenCount.current && prevOpenCount.current > 0) {
             playNewTradeSound();
           }
@@ -91,7 +91,7 @@ export default function Operations() {
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [page]);
 
   if (loading) return <div className="p-6"><Spinner /></div>;
 
@@ -164,8 +164,21 @@ export default function Operations() {
                   </div>
                   <div className={`text-sm mt-1 ${isProfit ? 'text-green-300' : 'text-red-300'}`}>
                     {isProfit ? '+' : ''}{pnlPct.toFixed(2)}% da entrada
-                  </div>
-                </div>
+        </div>
+        
+        {/* Pagination */}
+        <div className="flex justify-center gap-3 mt-6">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
+            Anterior
+          </button>
+          <span className="px-4 py-2 text-slate-400">Página {page}</span>
+          <button onClick={() => setPage(p => p + 1)} disabled={data.closed.length < 50}
+            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
+            Próxima
+          </button>
+        </div>
+      </div>
                 <div className="text-xs text-slate-500 space-y-1">
                   <div className="flex justify-between"><span>Qtd:</span><span className="text-white">{order.quantity}</span></div>
                   <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
@@ -183,7 +196,8 @@ export default function Operations() {
 
       {/* Ordens Fechadas */}
       <div>
-        <h2 className="text-xl font-bold text-white mb-4">Histórico ({data.closed.length})</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Histórico ({data.total_closed})</h2>
+        <div className="text-slate-400 text-sm mb-3">PnL total: <span className={`font-bold ${data.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{data.total_pnl >= 0 ? '+' : ''}${data.total_pnl}</span></div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.closed.map((order) => {
             const isWin = order.pnl_pct > 0;
