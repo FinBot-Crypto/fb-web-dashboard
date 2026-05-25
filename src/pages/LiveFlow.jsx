@@ -1,20 +1,65 @@
 import React, { useState, useEffect } from 'react';
 
 const LABELS = {
-  market: '📡 Market Selection',
-  strategy: '🧠 Strategy ML',
-  decision: '🎯 Decision Engine',
-  trade: '💼 Trade Decision',
-  exec: '⚡ Execution',
+  market: { icon: '📡', label: 'Market Selection', color: 'border-blue-500' },
+  strategy: { icon: '🧠', label: 'Strategy ML', color: 'border-purple-500' },
+  decision: { icon: '🎯', label: 'Decision Engine', color: 'border-amber-500' },
+  trade: { icon: '💼', label: 'Trade Decision', color: 'border-green-500' },
+  exec: { icon: '⚡', label: 'Execution', color: 'border-red-500' },
 };
 
-const COLORS = {
-  market: 'border-blue-500',
-  strategy: 'border-purple-500',
-  decision: 'border-amber-500',
-  trade: 'border-green-500',
-  exec: 'border-red-500',
-};
+function adjustTime(utcStr, offsetHours = -3) {
+  try {
+    const parts = utcStr.split(/[- :]/);
+    if (parts.length < 6) return utcStr;
+    const d = new Date(Date.UTC(+parts[0], +parts[1]-1, +parts[2], +parts[3], +parts[4], +parts[5]));
+    d.setHours(d.getHours() + offsetHours);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch { return utcStr; }
+}
+
+function parseBatches(logs) {
+  const all = [];
+  Object.entries(LABELS).forEach(([key, { icon, label }]) => {
+    (logs[key] || []).forEach(line => {
+      const timeMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+      if (timeMatch) {
+        all.push({ time: timeMatch[1], timeLocal: adjustTime(timeMatch[1]), service: key, icon, line });
+      }
+    });
+  });
+  all.sort((a, b) => a.time.localeCompare(b.time));
+
+  const batches = [];
+  let current = null;
+
+  all.forEach(item => {
+    if (item.service === 'market' && item.line.includes('Publicado')) {
+      if (current) batches.push(current);
+      current = { id: item.time, time: item.timeLocal, items: [] };
+    }
+    if (current) {
+      // Remove timestamp prefix e INFO prefix
+      let clean = item.line.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - \w+ - \w+ - /, '');
+      current.items.push({ icon: item.icon, line: clean, service: item.service });
+    }
+  });
+  if (current && current.items.length > 0) batches.push(current);
+  
+  return batches.reverse().slice(0, 4);
+}
+
+function getResultEmoji(line) {
+  if (line.includes('SIGNAL LONG')) return '🟢';
+  if (line.includes('ignora')) return '⏭️';
+  if (line.includes('BUY executado')) return '✅';
+  if (line.includes('max posições')) return '🚫';
+  if (line.includes('Publicados') || line.includes('Publicado')) return '📤';
+  if (line.includes('Selecionados')) return '🔍';
+  if (line.includes('SELL executado')) return '💰';
+  if (line.includes('trailing')) return '📈';
+  return '  ';
+}
 
 export default function LiveFlow() {
   const [logs, setLogs] = useState({});
@@ -31,28 +76,40 @@ export default function LiveFlow() {
         .catch(() => {});
     };
     fetchLogs();
-    const interval = setInterval(fetchLogs, 3000);
+    const interval = setInterval(fetchLogs, 5000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) return <div className="p-6 text-white">Carregando live flow...</div>;
 
+  const batches = parseBatches(logs);
+  const noData = Object.values(logs).every(arr => arr.length === 0);
+
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Live Flow</h1>
-      <div className="grid grid-cols-1 gap-4">
-        {Object.entries(LABELS).map(([key, label]) => (
-          <div key={key} className={`bg-slate-800 p-4 rounded-xl border ${COLORS[key]}/30`}>
-            <h2 className="text-sm font-bold text-slate-300 mb-2">{label}</h2>
-            <div className="bg-slate-900 rounded-lg p-3 font-mono text-xs text-slate-400 max-h-40 overflow-y-auto">
-              {(logs[key] || []).length === 0 && <span className="text-slate-600">-- sem dados --</span>}
-              {(logs[key] || []).map((line, i) => (
-                <div key={i} className="py-0.5 border-b border-slate-800 last:border-0">{line}</div>
-              ))}
-            </div>
+      
+      {noData && <p className="text-slate-500">Aguardando dados dos containers...</p>}
+
+      {batches.map((batch, i) => (
+        <div key={i} className="mb-6 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="bg-slate-900 px-4 py-3 flex items-center gap-2 border-b border-slate-700">
+            <span className="text-slate-400 text-sm font-mono">{batch.time}</span>
+            <span className="text-accentGreen text-xs font-bold uppercase">Lote {batch.id?.split('T')[0]} {batch.time}</span>
+            <span className="text-slate-500 text-xs ml-auto">{batch.items.length} eventos</span>
           </div>
-        ))}
-      </div>
+          <div className="divide-y divide-slate-700/50">
+            {batch.items.map((item, j) => (
+              <div key={j} className="px-4 py-2 hover:bg-slate-700/30 transition-colors flex items-start gap-3">
+                <span className="text-sm mt-0.5">{item.icon}</span>
+                <span className="text-slate-300 text-xs font-mono flex-1">
+                  {getResultEmoji(item.line)} {item.line}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
