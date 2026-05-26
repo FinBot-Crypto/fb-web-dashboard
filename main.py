@@ -19,6 +19,14 @@ NATS_URL = os.getenv("NATS_URL", "nats://crypto-nats:4222")
 def get_db_conn():
     return psycopg2.connect(DATABASE_URL)
 
+# Conexão NATS reutilizável (evita leak de file descriptors)
+_nats_client = None
+async def get_nats():
+    global _nats_client
+    if _nats_client is None or _nats_client.is_closed:
+        _nats_client = await nats.connect(NATS_URL)
+    return _nats_client
+
 # Endpoints da API
 
 @app.get("/api/dashboard")
@@ -203,9 +211,9 @@ async def get_operations(page: int = 1, limit: int = 50):
         kv_data = {}
         current_prices = {}
         try:
-            nc = await nats.connect(NATS_URL)
+            nc = await get_nats()
             js = nc.jetstream()
-            kv = await js.key_value("active_positions")
+            kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=3.0)
             keys = await kv.keys()
             for k in keys:
                 entry = await kv.get(k)
@@ -215,21 +223,7 @@ async def get_operations(page: int = 1, limit: int = 50):
                     "sl_price": pos.get("sl_price"),
                     "tp_price": pos.get("tp_price")
                 }
-            await nc.close()
-            
-            # Buscar preços atuais para todas as moedas abertas
-            exchange = ccxt.binance({
-                'apiKey': os.getenv("BINANCE_API_KEY"),
-                'secret': os.getenv("BINANCE_API_SECRET"),
-                'enableRateLimit': True,
-            })
-            for row in rows:
-                if row[2] == "OPEN":
-                    try:
-                        ticker = exchange.fetch_ticker(row[1])
-                        current_prices[row[1]] = ticker["last"]
-                    except:
-                        current_prices[row[1]] = None
+            # nc mantido aberto (singleton)
         except Exception as e:
             print(f"Erro ao buscar KV/preços: {e}")
         
