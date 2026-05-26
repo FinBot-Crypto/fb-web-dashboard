@@ -7,6 +7,7 @@ import json
 import base64
 import nats
 import ccxt
+import asyncio
 from nats.js.api import ConsumerConfig
 
 app = FastAPI(title="Crypto Bot Dashboard API")
@@ -215,15 +216,32 @@ async def get_operations(page: int = 1, limit: int = 50):
             js = nc.jetstream()
             kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=3.0)
             keys = await kv.keys()
+            
+            symbols_to_fetch = []
             for k in keys:
                 entry = await kv.get(k)
                 pos = json.loads(entry.value.decode())
                 sym = pos.get("symbol", "")
-                kv_data[sym] = {
-                    "sl_price": pos.get("sl_price"),
-                    "tp_price": pos.get("tp_price")
-                }
-            # nc mantido aberto (singleton)
+                if sym:
+                    symbols_to_fetch.append(sym)
+                    kv_data[sym] = {
+                        "sl_price": pos.get("sl_price"),
+                        "tp_price": pos.get("tp_price")
+                    }
+            
+            if symbols_to_fetch:
+                try:
+                    exchange = ccxt.binance({
+                        'apiKey': os.getenv("BINANCE_API_KEY"),
+                        'secret': os.getenv("BINANCE_API_SECRET"),
+                        'enableRateLimit': True,
+                    })
+                    tickers = exchange.fetch_tickers(symbols_to_fetch)
+                    for sym in symbols_to_fetch:
+                        if sym in tickers:
+                            current_prices[sym] = tickers[sym].get("last")
+                except Exception as e2:
+                    print(f"Erro ao buscar tickers em lote: {e2}")
         except Exception as e:
             print(f"Erro ao buscar KV/preços: {e}")
         
