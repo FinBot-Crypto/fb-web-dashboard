@@ -291,6 +291,10 @@ export default function Operations() {
               ? `${remainingHours.toFixed(1)}h restam`
               : null;
 
+            const marketTag = order.is_futures 
+              ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/30">FUTURES {order.leverage}x</span>
+              : <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-600/20 text-slate-400 font-semibold border border-slate-600/30">SPOT</span>;
+
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
@@ -300,6 +304,7 @@ export default function Operations() {
                   <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-white font-bold text-lg">{order.symbol}</span>
+                      {marketTag}
                       {wlInfo}
                     </div>
                     <div className="flex items-center gap-2">
@@ -383,10 +388,17 @@ export default function Operations() {
                     let badgeText = order.exit_reason || 'Encerrado';
                     if (order.exit_reason === 'STOP_LOSS' && isWin) badgeText = 'Trailing Stop';
 
+                    const marketTag = order.is_futures 
+                      ? <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/20">FUTURES {order.leverage}x</span>
+                      : <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-600/20 text-slate-400 font-semibold border border-slate-600/20">SPOT</span>;
+
                     return (
                       <div key={order.id} className={`bg-slate-800 p-5 rounded-xl border ${isWin ? 'border-accentGreen/30' : 'border-accentRed/30'}`}>
                         <div className="flex justify-between items-center mb-3">
-                          <span className="text-white font-bold text-lg">{order.symbol}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-bold text-lg">{order.symbol}</span>
+                            {marketTag}
+                          </div>
                           <span className={`text-xs px-2 py-1 rounded-full uppercase ${isWin ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
                             {badgeText}
                           </span>

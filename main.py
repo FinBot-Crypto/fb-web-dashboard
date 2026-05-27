@@ -185,7 +185,7 @@ async def get_operations(page: int = 1, limit: int = 50):
         
         cur.execute("""
             SELECT id, symbol, status, entry_price, exit_price, quantity, 
-                   exit_reason, pnl_pct, created_at, updated_at
+                   exit_reason, pnl_pct, created_at, updated_at, is_futures, leverage
             FROM trade_log 
             ORDER BY created_at DESC LIMIT %s OFFSET %s;
         """, (limit, offset))
@@ -227,7 +227,9 @@ async def get_operations(page: int = 1, limit: int = 50):
                     kv_data[sym] = {
                         "sl_price": pos.get("sl_price"),
                         "tp_price": pos.get("tp_price"),
-                        "entry_time": pos.get("entry_time")
+                        "entry_time": pos.get("entry_time"),
+                        "is_futures": pos.get("is_futures", False),
+                        "leverage": pos.get("leverage", 1)
                     }
             
             if symbols_to_fetch:
@@ -260,7 +262,9 @@ async def get_operations(page: int = 1, limit: int = 50):
                 "exit_reason": row[6],
                 "pnl_pct": row[7],
                 "created_at": row[8].strftime("%d/%m %H:%M") if row[8] else "",
-                "updated_at": row[9].strftime("%d/%m %H:%M") if row[9] else ""
+                "updated_at": row[9].strftime("%d/%m %H:%M") if row[9] else "",
+                "is_futures": row[10] if len(row) > 10 else False,
+                "leverage": row[11] if len(row) > 11 else 1
             }
             if row[2] == "OPEN":
                 # Adicionar SL/TP do KV
@@ -268,6 +272,8 @@ async def get_operations(page: int = 1, limit: int = 50):
                 order["sl_price"] = kv_info.get("sl_price")
                 order["tp_price"] = kv_info.get("tp_price")
                 order["entry_time"] = kv_info.get("entry_time")
+                order["is_futures"] = kv_info.get("is_futures", order.get("is_futures", False))
+                order["leverage"] = kv_info.get("leverage", order.get("leverage", 1))
                 order["current_price"] = current_prices.get(row[1])
                 # W/L histórico
                 wl = coin_wl.get(row[1], {})
