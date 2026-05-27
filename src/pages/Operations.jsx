@@ -2,41 +2,112 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Spinner, playNewTradeSound } from '../components/UI';
 
-function SLTPBar({ current, sl, tp, entry }) {
-  if (!sl || !tp || !current) return null;
-  const range = tp - sl;
-  if (range <= 0) return null;
-  const pct = ((current - sl) / range) * 100;
-  const clamped = Math.max(0, Math.min(100, pct));
-  const barColor = current >= entry ? 'bg-accentGreen' : 'bg-accentRed';
+function SLTPBar({ current, sl, tp, entry, entryTime, maxHoldHours }) {
+  if (!entry || !current) return null;
+
+  // 1. Barra de Preço (Entry -> TP ou SL -> Entry -> TP)
+  let priceProgressHtml = null;
+  const slActive = sl && sl > 0;
+  
+  if (slActive && tp && tp > sl) {
+    // Modo OCO legado com SL ativo
+    const range = tp - sl;
+    const pct = ((current - sl) / range) * 100;
+    const clamped = Math.max(0, Math.min(100, pct));
+    const barColor = current >= entry ? 'bg-accentGreen' : 'bg-accentRed';
+    priceProgressHtml = (
+      <div className="mt-3">
+        <div className="flex justify-between text-xs text-slate-500 mb-1">
+          <span>SL ${sl.toFixed(6)}</span>
+          <span className="text-slate-400">Entry ${entry.toFixed(6)}</span>
+          <span>TP ${tp.toFixed(6)}</span>
+        </div>
+        <div className="h-3 bg-slate-700/80 rounded-full relative overflow-hidden">
+          <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
+          <div className="absolute top-0 bottom-0 w-0.5 bg-white/50" style={{ left: `${((entry - sl) / range) * 100}%` }} />
+        </div>
+        <div className="text-center text-xs text-slate-400 mt-1">
+          ${current.toFixed(6)} ({clamped.toFixed(0)}% até TP)
+        </div>
+      </div>
+    );
+  } else if (tp && tp > entry) {
+    // Novo modo sem SL (Entry -> TP)
+    const range = tp - entry;
+    const pct = ((current - entry) / range) * 100;
+    const clamped = Math.max(0, Math.min(100, pct));
+    const isProfit = current >= entry;
+    const barColor = isProfit ? 'bg-accentGreen' : 'bg-slate-600';
+    priceProgressHtml = (
+      <div className="mt-3">
+        <div className="flex justify-between text-xs text-slate-500 mb-1">
+          <span className="text-slate-400">Entrada ${entry.toFixed(6)}</span>
+          <span>TP ${tp.toFixed(6)}</span>
+        </div>
+        <div className="h-3 bg-slate-700/80 rounded-full relative overflow-hidden">
+          <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
+        </div>
+        <div className="text-center text-xs text-slate-400 mt-1">
+          ${current.toFixed(6)} ({clamped.toFixed(0)}% do alvo TP)
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Barra de Tempo (Time Exit Dinâmico)
+  let timeProgressHtml = null;
+  if (entryTime && maxHoldHours) {
+    const elapsedSeconds = (Date.now() / 1000) - entryTime;
+    const elapsedHours = Math.max(0, elapsedSeconds / 3600);
+    const timePct = (elapsedHours / maxHoldHours) * 100;
+    const clampedTimePct = Math.max(0, Math.min(100, timePct));
+    
+    let timeBarColor = 'bg-blue-500';
+    if (clampedTimePct > 80) timeBarColor = 'bg-amber-500';
+    if (clampedTimePct > 95) timeBarColor = 'bg-accentRed';
+
+    timeProgressHtml = (
+      <div className="mt-3 border-t border-slate-700/50 pt-2">
+        <div className="flex justify-between text-xs text-slate-500 mb-1">
+          <span>Tempo decorrido</span>
+          <span>Timeout {maxHoldHours}h</span>
+        </div>
+        <div className="h-2 bg-slate-700/80 rounded-full relative overflow-hidden">
+          <div className={`h-full ${timeBarColor} rounded-full transition-all duration-500`} style={{ width: `${clampedTimePct}%` }} />
+        </div>
+        <div className="text-center text-xs text-slate-400 mt-1">
+          {elapsedHours.toFixed(1)}h decorridas ({clampedTimePct.toFixed(0)}% do tempo)
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-3">
-      <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>SL ${sl?.toFixed(6)}</span>
-        <span className="text-slate-400">Entry ${entry?.toFixed(6)}</span>
-        <span>TP ${tp?.toFixed(6)}</span>
-      </div>
-      <div className="h-3 bg-slate-700 rounded-full relative overflow-hidden">
-        <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
-        <div className="absolute top-0 bottom-0 w-0.5 bg-white/50" style={{ left: `${((entry - sl) / range) * 100}%` }} />
-      </div>
-      <div className="text-center text-xs text-slate-400 mt-1">
-        ${current?.toFixed(6)} ({clamped.toFixed(0)}% até TP)
-      </div>
+    <div className="space-y-1">
+      {priceProgressHtml}
+      {timeProgressHtml}
     </div>
   );
 }
 
 function TradeChart({ order, onClose }) {
-  if (!order.sl_price || !order.tp_price) return null;
+  if (!order.tp_price || !order.entry_price) return null;
+  const sl = order.sl_price && order.sl_price > 0 ? order.sl_price : null;
+  const tp = order.tp_price;
+  const entry = order.entry_price;
+  const current = order.current_price || entry;
+  
   const data = [
-    { name: 'SL', price: order.sl_price },
-    { name: 'Entry', price: order.entry_price },
-    { name: 'Now', price: order.current_price || order.entry_price },
-    { name: 'TP', price: order.tp_price },
+    { name: 'Entrada', price: entry },
+    { name: 'Atual', price: current },
+    { name: 'TP', price: tp },
   ];
-  const min = order.sl_price * 0.998;
-  const max = order.tp_price * 1.002;
+  if (sl) {
+    data.unshift({ name: 'SL', price: sl });
+  }
+  
+  const min = sl ? sl * 0.998 : entry * 0.98;
+  const max = tp * 1.002;
   
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -51,16 +122,16 @@ function TradeChart({ order, onClose }) {
             <XAxis dataKey="name" stroke="#94a3b8" />
             <YAxis domain={[min, max]} stroke="#94a3b8" tickFormatter={v => '$' + v.toFixed(4)} />
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }} />
-            <ReferenceLine y={order.entry_price} stroke="#fbbf24" strokeDasharray="5 5" label={{ value: 'Entry', fill: '#fbbf24', fontSize: 12 }} />
-            <ReferenceLine y={order.sl_price} stroke="#ef4444" strokeDasharray="5 5" label={{ value: 'SL', fill: '#ef4444', fontSize: 12 }} />
-            <ReferenceLine y={order.tp_price} stroke="#22c55e" strokeDasharray="5 5" label={{ value: 'TP', fill: '#22c55e', fontSize: 12 }} />
+            <ReferenceLine y={entry} stroke="#fbbf24" strokeDasharray="5 5" label={{ value: 'Entry', fill: '#fbbf24', fontSize: 12 }} />
+            {sl && <ReferenceLine y={sl} stroke="#ef4444" strokeDasharray="5 5" label={{ value: 'SL', fill: '#ef4444', fontSize: 12 }} />}
+            <ReferenceLine y={tp} stroke="#22c55e" strokeDasharray="5 5" label={{ value: 'TP', fill: '#22c55e', fontSize: 12 }} />
             <Line type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={{ r: 4, fill: '#38bdf8' }} />
           </LineChart>
         </ResponsiveContainer>
         <div className="grid grid-cols-3 gap-4 mt-4 text-sm text-slate-400">
-          <div><span className="text-red-400">SL:</span> ${order.sl_price?.toFixed(6)}</div>
-          <div><span className="text-amber-400">Entry:</span> ${order.entry_price?.toFixed(6)}</div>
-          <div><span className="text-green-400">TP:</span> ${order.tp_price?.toFixed(6)}</div>
+          <div><span className="text-red-400">SL:</span> {sl ? `$${sl.toFixed(6)}` : 'Nulo (Sem SL)'}</div>
+          <div><span className="text-amber-400">Entry:</span> ${entry.toFixed(6)}</div>
+          <div><span className="text-green-400">TP:</span> ${tp.toFixed(6)}</div>
         </div>
       </div>
     </div>
@@ -68,7 +139,7 @@ function TradeChart({ order, onClose }) {
 }
 
 export default function Operations() {
-  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0 });
+  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12 });
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [page, setPage] = useState(1);
@@ -77,16 +148,22 @@ export default function Operations() {
   useEffect(() => {
     const fetchData = () => {
       fetch(`/api/operations?page=${page}&limit=50`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.open.length > prevOpenCount.current && prevOpenCount.current > 0) {
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(resData => {
+          if (resData.open.length > prevOpenCount.current && prevOpenCount.current > 0) {
             playNewTradeSound();
           }
-          prevOpenCount.current = data.open.length;
-          setData(data);
+          prevOpenCount.current = resData.open.length;
+          setData(resData);
           setLoading(false);
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+          console.error("Erro ao carregar operações (mantendo tela ativa):", err);
+          setLoading(false); // remove spinner na inicialização mesmo com erro
+        });
     };
     fetchData();
     const interval = setInterval(fetchData, 5000);
@@ -98,6 +175,36 @@ export default function Operations() {
   const totalInvested = data.open.reduce((sum, o) => sum + (o.entry_price * o.quantity), 0);
   const totalCurrent = data.open.reduce((sum, o) => sum + ((o.current_price || o.entry_price) * o.quantity), 0);
   const totalReturn = totalCurrent - totalInvested;
+
+  // Agrupamento de Histórico por Dia
+  const dailyGroups = {};
+  data.closed.forEach(order => {
+    const day = order.updated_at ? order.updated_at.split(' ')[0] : 'Sem data';
+    if (!dailyGroups[day]) {
+      dailyGroups[day] = {
+        day,
+        orders: [],
+        pnl: 0,
+        wins: 0,
+        total: 0
+      };
+    }
+    const invested = order.entry_price * order.quantity;
+    const pnl_dollar = (order.pnl_pct / 100) * invested;
+    dailyGroups[day].orders.push(order);
+    dailyGroups[day].pnl += pnl_dollar;
+    dailyGroups[day].total += 1;
+    if (order.pnl_pct > 0) {
+      dailyGroups[day].wins += 1;
+    }
+  });
+
+  const sortedDays = Object.keys(dailyGroups).sort((a, b) => {
+    const [dayA, monthA] = a.split('/');
+    const [dayB, monthB] = b.split('/');
+    if (monthA !== monthB) return monthB.localeCompare(monthA);
+    return dayB.localeCompare(dayA);
+  });
 
   return (
     <div className="p-6">
@@ -146,45 +253,45 @@ export default function Operations() {
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
-                className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
+                className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
               >
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-bold text-lg">{order.symbol}</span>
-                    {wlInfo}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-bold text-lg">{order.symbol}</span>
+                      {wlInfo}
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
+                      {isProfit ? 'Lucro' : 'Perda'}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
-                    {isProfit ? 'Lucro' : 'Perda'}
-                  </span>
-                </div>
-                {/* Mini-card central com PnL em $ e % */}
-                <div className={`text-center py-4 my-2 rounded-lg ${isProfit ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                  <div className={`text-3xl font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                    {isProfit ? '+' : ''}{pnlDollar.toFixed(4)} USDT
+                  
+                  {/* Mini-card de PnL */}
+                  <div className={`text-center py-4 my-2 rounded-lg ${isProfit ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                    <div className={`text-3xl font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                      {isProfit ? '+' : ''}{pnlDollar.toFixed(4)} USDT
+                    </div>
+                    <div className={`text-sm mt-1 ${isProfit ? 'text-green-300' : 'text-red-300'}`}>
+                      {isProfit ? '+' : ''}{pnlPct.toFixed(2)}% da entrada
+                    </div>
                   </div>
-                  <div className={`text-sm mt-1 ${isProfit ? 'text-green-300' : 'text-red-300'}`}>
-                    {isProfit ? '+' : ''}{pnlPct.toFixed(2)}% da entrada
-        </div>
-        
-        {/* Pagination */}
-        <div className="flex justify-center gap-3 mt-6">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
-            Anterior
-          </button>
-          <span className="px-4 py-2 text-slate-400">Página {page}</span>
-          <button onClick={() => setPage(p => p + 1)} disabled={data.closed.length < 50}
-            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
-            Próxima
-          </button>
-        </div>
-      </div>
-                <div className="text-xs text-slate-500 space-y-1">
-                  <div className="flex justify-between"><span>Qtd:</span><span className="text-white">{order.quantity}</span></div>
-                  <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
-                  <div className="flex justify-between"><span>Atual:</span><span className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>${current?.toFixed(6) || '...'}</span></div>
                 </div>
-                <SLTPBar current={current} sl={order.sl_price} tp={order.tp_price} entry={order.entry_price} />
+
+                <div>
+                  <div className="text-xs text-slate-500 space-y-1 mb-2">
+                    <div className="flex justify-between"><span>Qtd:</span><span className="text-white">{order.quantity}</span></div>
+                    <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
+                    <div className="flex justify-between"><span>Atual:</span><span className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>${current?.toFixed(6) || '...'}</span></div>
+                  </div>
+                  <SLTPBar 
+                    current={current} 
+                    sl={order.sl_price} 
+                    tp={order.tp_price} 
+                    entry={order.entry_price}
+                    entryTime={order.entry_time}
+                    maxHoldHours={data.max_hold_hours}
+                  />
+                </div>
               </div>
             );
           })}
@@ -194,43 +301,82 @@ export default function Operations() {
         </div>
       </div>
 
-      {/* Ordens Fechadas */}
+      {/* Ordens Fechadas com Cabeçalhos por Dia */}
       <div>
         <h2 className="text-xl font-bold text-white mb-4">Histórico ({data.total_closed})</h2>
-        <div className="text-slate-400 text-sm mb-3">PnL total: <span className={`font-bold ${data.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{data.total_pnl >= 0 ? '+' : ''}${data.total_pnl}</span></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.closed.map((order) => {
-            const isWin = order.pnl_pct > 0;
-            const invested = order.entry_price * order.quantity;
-            const pnl_dollar = (order.pnl_pct / 100) * invested;
-            let badgeText = order.exit_reason || 'Encerrado';
-            if (order.exit_reason === 'STOP_LOSS' && isWin) badgeText = 'Trailing Stop';
-
+        <div className="text-slate-400 text-sm mb-6">PnL total geral: <span className={`font-bold ${data.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>{data.total_pnl >= 0 ? '+' : ''}${data.total_pnl}</span></div>
+        
+        <div className="space-y-8">
+          {sortedDays.map(dayKey => {
+            const group = dailyGroups[dayKey];
+            const isDayProfit = group.pnl >= 0;
+            const winRate = group.total > 0 ? (group.wins / group.total * 100) : 0;
             return (
-              <div key={order.id} className={`bg-slate-800 p-5 rounded-xl border ${isWin ? 'border-accentGreen/30' : 'border-accentRed/30'}`}>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-white font-bold text-lg">{order.symbol}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full uppercase ${isWin ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
-                    {badgeText}
-                  </span>
-                </div>
-                <div className="text-sm text-slate-400 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Resultado:</span>
-                    <span className={`font-bold ${isWin ? 'text-accentGreen' : 'text-accentRed'}`}>
-                      {isWin ? '+' : ''}{pnl_dollar.toFixed(4)} USDT ({isWin ? '+' : ''}{order.pnl_pct?.toFixed(2)}%)
+              <div key={dayKey} className="border-l-2 border-slate-700 pl-4 py-1">
+                {/* Cabeçalho do Dia */}
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-bold text-white">{dayKey}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                      {group.total} trades ({winRate.toFixed(0)}% WR)
                     </span>
                   </div>
-                  <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
-                  <div className="flex justify-between"><span>Saída:</span><span className="text-white">${order.exit_price}</span></div>
-                  <div className="flex justify-between"><span>Fechado:</span><span className="text-white">{order.updated_at}</span></div>
+                  <span className={`font-bold text-base ${isDayProfit ? 'text-green-400' : 'text-red-400'}`}>
+                    Resultado: {isDayProfit ? '+' : ''}${group.pnl.toFixed(4)} USDT
+                  </span>
+                </div>
+
+                {/* Cards do Dia */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {group.orders.map((order) => {
+                    const isWin = order.pnl_pct > 0;
+                    const invested = order.entry_price * order.quantity;
+                    const pnl_dollar = (order.pnl_pct / 100) * invested;
+                    let badgeText = order.exit_reason || 'Encerrado';
+                    if (order.exit_reason === 'STOP_LOSS' && isWin) badgeText = 'Trailing Stop';
+
+                    return (
+                      <div key={order.id} className={`bg-slate-800 p-5 rounded-xl border ${isWin ? 'border-accentGreen/30' : 'border-accentRed/30'}`}>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-white font-bold text-lg">{order.symbol}</span>
+                          <span className={`text-xs px-2 py-1 rounded-full uppercase ${isWin ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
+                            {badgeText}
+                          </span>
+                        </div>
+                        <div className="text-sm text-slate-400 space-y-1">
+                          <div className="flex justify-between">
+                            <span>Resultado:</span>
+                            <span className={`font-bold ${isWin ? 'text-accentGreen' : 'text-accentRed'}`}>
+                              {isWin ? '+' : ''}{pnl_dollar.toFixed(4)} USDT ({isWin ? '+' : ''}{order.pnl_pct?.toFixed(2)}%)
+                            </span>
+                          </div>
+                          <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
+                          <div className="flex justify-between"><span>Saída:</span><span className="text-white">${order.exit_price}</span></div>
+                          <div className="flex justify-between"><span>Fechado:</span><span className="text-white">{order.updated_at.split(' ')[1]}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
           {data.closed.length === 0 && (
-            <p className="text-slate-500 col-span-full">Nenhuma ordem fechada.</p>
+            <p className="text-slate-500">Nenhuma ordem fechada no histórico.</p>
           )}
+        </div>
+
+        {/* Pagination */}
+        <div className="flex justify-center gap-3 mt-8">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
+            Anterior
+          </button>
+          <span className="px-4 py-2 text-slate-400">Página {page}</span>
+          <button onClick={() => setPage(p => p + 1)} disabled={data.closed.length < 50}
+            className="px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 hover:border-accentGreen disabled:opacity-50">
+            Próxima
+          </button>
         </div>
       </div>
     </div>
