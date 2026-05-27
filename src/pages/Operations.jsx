@@ -306,7 +306,7 @@ export default function Operations() {
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
-                className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
+                 className={`bg-slate-800 p-5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between ${isProfit ? 'border-green-500/30 hover:border-green-500' : 'border-red-500/30 hover:border-red-500'}`}
               >
                 <div>
                   <div className="flex justify-between items-center mb-2">
@@ -343,6 +343,13 @@ export default function Operations() {
                     <div className="flex justify-between"><span>Qtd:</span><span className="text-white">{order.quantity}</span></div>
                     <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
                     <div className="flex justify-between"><span>Atual:</span><span className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>${current?.toFixed(6) || '...'}</span></div>
+                    <div className="flex justify-between border-t border-slate-700/50 pt-1 mt-1 text-[11px]">
+                      <span>Métricas de Entrada:</span>
+                      <span className="text-slate-300">
+                        Score: <strong className="text-white">{order.score !== undefined && order.score !== null ? order.score.toFixed(2) : '-'}</strong> | 
+                        RSI: <strong className="text-white">{order.rsi !== undefined && order.rsi !== null ? order.rsi.toFixed(1) : '-'}</strong>
+                      </span>
+                    </div>
                   </div>
                   <SLTPBar 
                     current={current} 
@@ -421,6 +428,13 @@ export default function Operations() {
                           <div className="flex justify-between"><span>Entrada:</span><span className="text-white">${order.entry_price}</span></div>
                           <div className="flex justify-between"><span>Saída:</span><span className="text-white">${order.exit_price}</span></div>
                           <div className="flex justify-between"><span>Fechado:</span><span className="text-white">{order.updated_at.split(' ')[1]}</span></div>
+                          <div className="flex justify-between border-t border-slate-700/50 pt-1 mt-1 text-[11px]">
+                            <span>Métricas:</span>
+                            <span className="text-slate-300">
+                              Score: <strong className="text-white">{order.score !== undefined && order.score !== null ? order.score.toFixed(2) : '-'}</strong> | 
+                              RSI: <strong className="text-white">{order.rsi !== undefined && order.rsi !== null ? order.rsi.toFixed(1) : '-'}</strong>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
