@@ -114,8 +114,10 @@ async def get_dashboard_data():
         cur.close()
         conn.close()
         
-        # Buscar saldo real na Binance
+        # Buscar saldo real na Binance (Spot + Futures)
         real_patrimony = 0
+        spot_balance_usdt = 0.0
+        futures_balance_usdt = 0.0
         bnb_usd = 0
         try:
             exchange = ccxt.binance({
@@ -123,7 +125,18 @@ async def get_dashboard_data():
                 'secret': os.getenv("BINANCE_API_SECRET"),
                 'enableRateLimit': True,
             })
+            futures_exchange = ccxt.binance({
+                'apiKey': os.getenv("BINANCE_API_KEY"),
+                'secret': os.getenv("BINANCE_API_SECRET"),
+                'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'future'
+                }
+            })
+            
+            # Saldo Spot
             balance = exchange.fetch_balance()
+            spot_balance_usdt = float(balance.get('free', {}).get('USDT', 0.0))
             total_val_usdt = balance['total'].get('USDT', 0)
             
             # Somar o valor de outras moedas (incluindo BNB)
@@ -138,6 +151,14 @@ async def get_dashboard_data():
                     except:
                         pass
             real_patrimony = round(total_val_usdt, 2)
+            
+            # Saldo Futures
+            try:
+                f_bal = futures_exchange.fetch_balance()
+                futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
+            except Exception as ef:
+                print(f"Erro ao buscar saldo Futures no dashboard: {ef}")
+
             # Saldo BNB separado
             bnb_amount = balance['total'].get('BNB', 0)
             if bnb_amount > 0:
@@ -146,7 +167,7 @@ async def get_dashboard_data():
                 except:
                     pass
         except Exception as e:
-            print(f"Erro ao buscar saldo na Binance: {e}")
+            print(f"Erro ao buscar saldos na Binance: {e}")
             
         return {
             "total_pnl_money": round(total_pnl_money, 2),
@@ -156,6 +177,8 @@ async def get_dashboard_data():
             "losses": losses,
             "active_positions": active_positions,
             "patrimony": real_patrimony,
+            "spot_balance": round(spot_balance_usdt, 2),
+            "futures_balance": round(futures_balance_usdt, 2),
             "bnb_balance": bnb_usd,
             "rankings": {
                 "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
@@ -288,6 +311,30 @@ async def get_operations(page: int = 1, limit: int = 50):
         conn.close()
         
         max_hold_hours = float(os.getenv("MAX_HOLD_HOURS", "12"))
+
+        # Buscar saldos em tempo real para exibir na tela de Operações
+        spot_balance_usdt = 0.0
+        futures_balance_usdt = 0.0
+        try:
+            exchange = ccxt.binance({
+                'apiKey': os.getenv("BINANCE_API_KEY"),
+                'secret': os.getenv("BINANCE_API_SECRET"),
+                'enableRateLimit': True,
+            })
+            futures_exchange = ccxt.binance({
+                'apiKey': os.getenv("BINANCE_API_KEY"),
+                'secret': os.getenv("BINANCE_API_SECRET"),
+                'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'future'
+                }
+            })
+            bal = exchange.fetch_balance()
+            spot_balance_usdt = float(bal.get('free', {}).get('USDT', 0.0))
+            f_bal = futures_exchange.fetch_balance()
+            futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
+        except Exception as e_bal:
+            print(f"Erro ao buscar saldos na API de operações: {e_bal}")
         
         return {
             "open": open_orders,
@@ -297,7 +344,9 @@ async def get_operations(page: int = 1, limit: int = 50):
             "total_pnl": total_pnl,
             "page": page,
             "limit": limit,
-            "max_hold_hours": max_hold_hours
+            "max_hold_hours": max_hold_hours,
+            "spot_balance": round(spot_balance_usdt, 2),
+            "futures_balance": round(futures_balance_usdt, 2)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

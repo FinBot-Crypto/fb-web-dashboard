@@ -10,6 +10,8 @@ export default function Dashboard() {
     losses: 0,
     active_positions: [],
     patrimony: 97.38,
+    spot_balance: 0,
+    futures_balance: 0,
     bnb_balance: 0,
     rankings: { best: [], worst: [], most_traded: [] },
     curve: []
@@ -35,42 +37,49 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold text-white mb-6">Dashboard</h1>
       
       {/* KPIs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
         {/* Card 1 - Patrimônio */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Patrimônio Total</p>
           <p className="text-2xl font-bold text-white mt-2">${data.patrimony}</p>
           <span className="text-slate-400 text-xs font-medium">Carteira Binance</span>
         </div>
+
+        {/* Card 2 - Saldo Spot */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors cursor-pointer">
+          <p className="text-slate-400 text-sm font-medium">Saldo Spot (USDT)</p>
+          <p className="text-2xl font-bold text-blue-400 mt-2">${data.spot_balance}</p>
+          <span className="text-slate-400 text-xs font-medium">Saldo disponível Spot</span>
+        </div>
+
+        {/* Card 3 - Saldo Futures */}
+        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-purple-500 transition-colors cursor-pointer">
+          <p className="text-slate-400 text-sm font-medium">Saldo Futures (USDT)</p>
+          <p className="text-2xl font-bold text-purple-400 mt-2">${data.futures_balance}</p>
+          <span className="text-slate-400 text-xs font-medium">Saldo disponível Futures</span>
+        </div>
         
-        {/* Card 2 - BNB Taxas */}
+        {/* Card 4 - BNB Taxas */}
         <div className="bg-slate-800 p-6 rounded-xl border border-amber-500/30 hover:border-amber-500 transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">BNB (Taxas)</p>
           <p className="text-2xl font-bold text-amber-400 mt-2">${data.bnb_balance}</p>
           <span className="text-slate-400 text-xs font-medium">Colchão p/ taxas</span>
         </div>
         
-        {/* Card 3 */}
+        {/* Card 5 - Lucro Líquido */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Lucro Líquido (DB)</p>
           <p className={`text-2xl font-bold mt-2 ${data.total_pnl_money >= 0 ? 'text-accentGreen' : 'text-accentRed'}`}>
             {data.total_pnl_money >= 0 ? '+' : ''}${data.total_pnl_money}
           </p>
-          <span className="text-accentGreen text-xs font-medium">Soma real em dólares</span>
+          <span className="text-accentGreen text-xs font-medium">Soma real de lucros</span>
         </div>
         
-        {/* Card 4 */}
+        {/* Card 6 - Win Rate e Trades */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Win Rate Geral</p>
           <p className="text-2xl font-bold text-white mt-2">{data.win_rate}%</p>
-          <span className="text-slate-400 text-xs font-medium">{data.wins} vitórias / {data.losses} derrotas</span>
-        </div>
-        
-        {/* Card 5 */}
-        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
-          <p className="text-slate-400 text-sm font-medium">Total de Trades</p>
-          <p className="text-2xl font-bold text-white mt-2">{data.total_closed}</p>
-          <span className="text-slate-400 text-xs font-medium">Encerrados</span>
+          <span className="text-slate-400 text-xs font-medium">{data.total_closed} trades ({data.wins}W/{data.losses}L)</span>
         </div>
       </div>
 

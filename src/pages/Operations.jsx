@@ -172,7 +172,7 @@ function TradeChart({ order, onClose }) {
 }
 
 export default function Operations() {
-  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12 });
+  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12, spot_balance: 0, futures_balance: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [page, setPage] = useState(1);
@@ -246,7 +246,7 @@ export default function Operations() {
       {selectedOrder && <TradeChart order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
 
       {/* Card de Resumo */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6 grid grid-cols-2 md:grid-cols-6 gap-4">
         <div>
           <div className="text-slate-400 text-sm">Em operação</div>
           <div className="text-white text-xl font-bold">${totalInvested.toFixed(2)}</div>
@@ -266,6 +266,14 @@ export default function Operations() {
           <div className={`text-xl font-bold ${totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             {totalReturn >= 0 ? '+' : ''}{(totalInvested > 0 ? (totalReturn / totalInvested * 100) : 0).toFixed(2)}%
           </div>
+        </div>
+        <div>
+          <div className="text-slate-400 text-sm">Saldo Spot</div>
+          <div className="text-blue-400 text-xl font-bold">${data.spot_balance}</div>
+        </div>
+        <div>
+          <div className="text-slate-400 text-sm">Saldo Futures</div>
+          <div className="text-purple-400 text-xl font-bold">${data.futures_balance}</div>
         </div>
       </div>
 
