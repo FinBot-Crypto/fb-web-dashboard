@@ -32,23 +32,49 @@ function SLTPBar({ current, sl, tp, entry, entryTime, maxHoldHours }) {
       </div>
     );
   } else if (tp && tp > entry) {
-    // Novo modo sem SL (Entry -> TP)
+    // Novo modo sem SL (Entry -> TP) com suporte a preço negativo/abaixo da entrada
     const range = tp - entry;
-    const pct = ((current - entry) / range) * 100;
-    const clamped = Math.max(0, Math.min(100, pct));
     const isProfit = current >= entry;
-    const barColor = isProfit ? 'bg-accentGreen' : 'bg-slate-600';
+    
+    let leftPos = 30;
+    let widthPct = 0;
+    let barColor = 'bg-accentGreen';
+    let progressLabel = '';
+
+    if (isProfit) {
+      const pct = ((current - entry) / range) * 100;
+      widthPct = Math.min(70, pct * 0.7); // 70% da barra é lucro
+      leftPos = 30;
+      barColor = 'bg-accentGreen';
+      progressLabel = `+${((current / entry - 1) * 100).toFixed(2)}% do entry (${pct.toFixed(0)}% do TP)`;
+    } else {
+      const pct = ((entry - current) / range) * 100;
+      widthPct = Math.min(30, pct * 0.7); // máximo de 30% da barra para prejuízo
+      leftPos = 30 - widthPct;
+      barColor = 'bg-accentRed';
+      progressLabel = `${((current / entry - 1) * 100).toFixed(2)}% abaixo do entry`;
+    }
+
+    const floorPrice = entry - (tp - entry) * (30 / 70);
+
     priceProgressHtml = (
       <div className="mt-3">
-        <div className="flex justify-between text-xs text-slate-500 mb-1">
-          <span className="text-slate-400">Entrada ${entry.toFixed(6)}</span>
-          <span>TP ${tp.toFixed(6)}</span>
+        <div className="relative text-xs text-slate-500 mb-1 h-4">
+          <span className="absolute left-0 text-slate-500/80">Min ${floorPrice.toFixed(6)}</span>
+          <span className="absolute text-slate-400 font-bold" style={{ left: '30%', transform: 'translateX(-50%)' }}>Entry ${entry.toFixed(6)}</span>
+          <span className="absolute right-0 text-slate-500">TP ${tp.toFixed(6)}</span>
         </div>
         <div className="h-3 bg-slate-700/80 rounded-full relative overflow-hidden">
-          <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
+          {/* Barra de progresso bidirecional */}
+          <div 
+            className={`absolute top-0 bottom-0 ${barColor} rounded-full transition-all duration-500`} 
+            style={{ left: `${leftPos}%`, width: `${widthPct}%` }} 
+          />
+          {/* Linha do Entrypoint em 30% */}
+          <div className="absolute top-0 bottom-0 w-0.5 bg-white/60" style={{ left: '30%' }} />
         </div>
         <div className="text-center text-xs text-slate-400 mt-1">
-          ${current.toFixed(6)} ({clamped.toFixed(0)}% do alvo TP)
+          ${current.toFixed(6)} ({progressLabel})
         </div>
       </div>
     );

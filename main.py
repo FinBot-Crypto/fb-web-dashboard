@@ -226,7 +226,8 @@ async def get_operations(page: int = 1, limit: int = 50):
                     symbols_to_fetch.append(sym)
                     kv_data[sym] = {
                         "sl_price": pos.get("sl_price"),
-                        "tp_price": pos.get("tp_price")
+                        "tp_price": pos.get("tp_price"),
+                        "entry_time": pos.get("entry_time")
                     }
             
             if symbols_to_fetch:
@@ -266,6 +267,7 @@ async def get_operations(page: int = 1, limit: int = 50):
                 kv_info = kv_data.get(row[1], {})
                 order["sl_price"] = kv_info.get("sl_price")
                 order["tp_price"] = kv_info.get("tp_price")
+                order["entry_time"] = kv_info.get("entry_time")
                 order["current_price"] = current_prices.get(row[1])
                 # W/L histórico
                 wl = coin_wl.get(row[1], {})
@@ -279,6 +281,8 @@ async def get_operations(page: int = 1, limit: int = 50):
         cur.close()
         conn.close()
         
+        max_hold_hours = float(os.getenv("MAX_HOLD_HOURS", "12"))
+        
         return {
             "open": open_orders,
             "closed": closed_orders,
@@ -287,6 +291,7 @@ async def get_operations(page: int = 1, limit: int = 50):
             "total_pnl": total_pnl,
             "page": page,
             "limit": limit,
+            "max_hold_hours": max_hold_hours
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
