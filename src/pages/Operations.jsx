@@ -32,36 +32,43 @@ function SLTPBar({ current, sl, tp, entry, entryTime, maxHoldHours }) {
       </div>
     );
   } else if (tp && tp > entry) {
-    // Novo modo sem SL (Entry -> TP) com suporte a preço negativo/abaixo da entrada
-    const range = tp - entry;
-    const isProfit = current >= entry;
-    
-    let leftPos = 30;
+    // Novo modo sem SL (Entry -> TP) com suporte a preço negativo com limite dinâmico
+    const defaultFloor = entry - (tp - entry) * (30 / 70);
+    // Se a perda for maior que o defaultFloor, esticamos a escala (deixando margem de 50% além do atual)
+    const minPrice = current < entry 
+      ? Math.min(defaultFloor, current - (entry - current) * 0.5) 
+      : defaultFloor;
+
+    const totalRange = tp - minPrice;
+    const entryPct = ((entry - minPrice) / totalRange) * 100;
+    const currentPct = ((current - minPrice) / totalRange) * 100;
+
+    const clampedEntryPct = Math.max(0, Math.min(100, entryPct));
+    const clampedCurrentPct = Math.max(0, Math.min(100, currentPct));
+
+    let leftPos = clampedEntryPct;
     let widthPct = 0;
     let barColor = 'bg-accentGreen';
     let progressLabel = '';
 
-    if (isProfit) {
-      const pct = ((current - entry) / range) * 100;
-      widthPct = Math.min(70, pct * 0.7); // 70% da barra é lucro
-      leftPos = 30;
+    if (current >= entry) {
+      leftPos = clampedEntryPct;
+      widthPct = Math.max(0, clampedCurrentPct - clampedEntryPct);
       barColor = 'bg-accentGreen';
-      progressLabel = `+${((current / entry - 1) * 100).toFixed(2)}% do entry (${pct.toFixed(0)}% do TP)`;
+      const pctToTP = ((current - entry) / (tp - entry)) * 100;
+      progressLabel = `+${((current / entry - 1) * 100).toFixed(2)}% do entry (${pctToTP.toFixed(0)}% do TP)`;
     } else {
-      const pct = ((entry - current) / range) * 100;
-      widthPct = Math.min(30, pct * 0.7); // máximo de 30% da barra para prejuízo
-      leftPos = 30 - widthPct;
+      leftPos = clampedCurrentPct;
+      widthPct = Math.max(0, clampedEntryPct - clampedCurrentPct);
       barColor = 'bg-accentRed';
       progressLabel = `${((current / entry - 1) * 100).toFixed(2)}% abaixo do entry`;
     }
 
-    const floorPrice = entry - (tp - entry) * (30 / 70);
-
     priceProgressHtml = (
       <div className="mt-3">
         <div className="relative text-xs text-slate-500 mb-1 h-4">
-          <span className="absolute left-0 text-slate-500/80">Min ${floorPrice.toFixed(6)}</span>
-          <span className="absolute text-slate-400 font-bold" style={{ left: '30%', transform: 'translateX(-50%)' }}>Entry ${entry.toFixed(6)}</span>
+          <span className="absolute left-0 text-slate-500/80">Min ${minPrice.toFixed(6)}</span>
+          <span className="absolute text-slate-400 font-bold" style={{ left: `${clampedEntryPct}%`, transform: 'translateX(-50%)' }}>Entry ${entry.toFixed(6)}</span>
           <span className="absolute right-0 text-slate-500">TP ${tp.toFixed(6)}</span>
         </div>
         <div className="h-3 bg-slate-700/80 rounded-full relative overflow-hidden">
@@ -70,8 +77,8 @@ function SLTPBar({ current, sl, tp, entry, entryTime, maxHoldHours }) {
             className={`absolute top-0 bottom-0 ${barColor} rounded-full transition-all duration-500`} 
             style={{ left: `${leftPos}%`, width: `${widthPct}%` }} 
           />
-          {/* Linha do Entrypoint em 30% */}
-          <div className="absolute top-0 bottom-0 w-0.5 bg-white/60" style={{ left: '30%' }} />
+          {/* Linha do Entrypoint */}
+          <div className="absolute top-0 bottom-0 w-0.5 bg-white/60" style={{ left: `${clampedEntryPct}%` }} />
         </div>
         <div className="text-center text-xs text-slate-400 mt-1">
           ${current.toFixed(6)} ({progressLabel})
@@ -276,6 +283,14 @@ export default function Operations() {
                   ({order.coin_wins}W/{order.coin_losses}L)
                 </span>
               : null;
+
+            const elapsedSeconds = order.entry_time ? (Date.now() / 1000) - order.entry_time : 0;
+            const elapsedHours = elapsedSeconds / 3600;
+            const remainingHours = Math.max(0, data.max_hold_hours - elapsedHours);
+            const remainingText = order.entry_time 
+              ? `${remainingHours.toFixed(1)}h restam`
+              : null;
+
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
@@ -287,9 +302,16 @@ export default function Operations() {
                       <span className="text-white font-bold text-lg">{order.symbol}</span>
                       {wlInfo}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
-                      {isProfit ? 'Lucro' : 'Perda'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {remainingText && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300" title="Tempo restante para Time Exit">
+                          {remainingText}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-1 rounded-full uppercase ${isProfit ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
+                        {isProfit ? 'Lucro' : 'Perda'}
+                      </span>
+                    </div>
                   </div>
                   
                   {/* Mini-card de PnL */}
