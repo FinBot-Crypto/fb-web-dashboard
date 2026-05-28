@@ -237,25 +237,30 @@ async def get_operations(page: int = 1, limit: int = 50):
         try:
             nc = await get_nats()
             js = nc.jetstream()
-            kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=3.0)
+            # Usa timeout menor para evitar prender a requisição web
+            kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=1.0)
             keys = await kv.keys()
             
             symbols_to_fetch = []
             for k in keys:
-                entry = await kv.get(k)
-                pos = json.loads(entry.value.decode())
-                sym = pos.get("symbol", "")
-                if sym:
-                    symbols_to_fetch.append(sym)
-                    kv_data[sym] = {
-                        "sl_price": pos.get("sl_price"),
-                        "tp_price": pos.get("tp_price"),
-                        "entry_time": pos.get("entry_time"),
-                        "is_futures": pos.get("is_futures", False),
-                        "leverage": pos.get("leverage", 1),
-                        "score": pos.get("score"),
-                        "rsi": pos.get("rsi")
-                    }
+                try:
+                    entry = await kv.get(k)
+                    if entry:
+                        pos = json.loads(entry.value.decode())
+                        sym = pos.get("symbol", "")
+                        if sym:
+                            symbols_to_fetch.append(sym)
+                            kv_data[sym] = {
+                                "sl_price": pos.get("sl_price"),
+                                "tp_price": pos.get("tp_price"),
+                                "entry_time": pos.get("entry_time"),
+                                "is_futures": pos.get("is_futures", False),
+                                "leverage": pos.get("leverage", 1),
+                                "score": pos.get("score"),
+                                "rsi": pos.get("rsi")
+                            }
+                except Exception as entry_err:
+                    print(f"Erro ao obter chave do KV: {entry_err}")
             
             if symbols_to_fetch:
                 try:
