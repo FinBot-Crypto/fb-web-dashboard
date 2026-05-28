@@ -232,16 +232,22 @@ async def get_operations(page: int = 1, limit: int = 50):
         total_pnl = round(cur.fetchone()[0], 2)
         
         # Buscar SL/TP do KV (NATS) e preços atuais da Binance
+        import time as _time_profile
+        t_start = _time_profile.time()
+        
         kv_data = {}
         current_prices = {}
         try:
+            t0 = _time_profile.time()
             nc = await get_nats()
             js = nc.jetstream()
             # Usa timeout menor para evitar prender a requisição web
             kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=1.0)
             keys = await kv.keys()
+            print(f"[PERF] NATS keys fetch took {_time_profile.time() - t0:.3f}s")
             
             symbols_to_fetch = []
+            t0 = _time_profile.time()
             for k in keys:
                 try:
                     entry = await kv.get(k)
@@ -261,8 +267,10 @@ async def get_operations(page: int = 1, limit: int = 50):
                             }
                 except Exception as entry_err:
                     print(f"Erro ao obter chave do KV: {entry_err}")
+            print(f"[PERF] NATS values read took {_time_profile.time() - t0:.3f}s")
             
             if symbols_to_fetch:
+                t0 = _time_profile.time()
                 try:
                     exchange = ccxt.binance({
                         'apiKey': os.getenv("BINANCE_API_KEY"),
@@ -275,6 +283,7 @@ async def get_operations(page: int = 1, limit: int = 50):
                             current_prices[sym] = tickers[sym].get("last")
                 except Exception as e2:
                     print(f"Erro ao buscar tickers em lote: {e2}")
+                print(f"[PERF] CCXT tickers fetch took {_time_profile.time() - t0:.3f}s")
         except Exception as e:
             print(f"Erro ao buscar KV/preços: {e}")
         
@@ -306,8 +315,9 @@ async def get_operations(page: int = 1, limit: int = 50):
                 order["entry_time"] = kv_info.get("entry_time")
                 order["is_futures"] = kv_info.get("is_futures", order.get("is_futures", False))
                 order["leverage"] = kv_info.get("leverage", order.get("leverage", 1))
-                order["score"] = kv_info.get("score", order.get("score"))
-                order["rsi"] = kv_info.get("rsi", order.get("rsi"))
+                # Fallback para o Banco de Dados se o KV Store estiver sem o score/rsi
+                order["score"] = kv_info.get("score") if kv_info.get("score") is not None else order.get("score")
+                order["rsi"] = kv_info.get("rsi") if kv_info.get("rsi") is not None else order.get("rsi")
                 order["current_price"] = current_prices.get(row[1])
                 # W/L histórico
                 wl = coin_wl.get(row[1], {})
@@ -326,6 +336,7 @@ async def get_operations(page: int = 1, limit: int = 50):
         # Buscar saldos em tempo real para exibir na tela de Operações
         spot_balance_usdt = 0.0
         futures_balance_usdt = 0.0
+        t0 = _time_profile.time()
         try:
             exchange = ccxt.binance({
                 'apiKey': os.getenv("BINANCE_API_KEY"),
@@ -346,6 +357,8 @@ async def get_operations(page: int = 1, limit: int = 50):
             futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
         except Exception as e_bal:
             print(f"Erro ao buscar saldos na API de operações: {e_bal}")
+        print(f"[PERF] CCXT Spot+Futures balance fetch took {_time_profile.time() - t0:.3f}s")
+        print(f"[PERF] get_operations TOTAL TIME: {_time_profile.time() - t_start:.3f}s")
         
         return {
             "open": open_orders,
