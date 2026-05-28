@@ -179,28 +179,51 @@ export default function Operations() {
   const prevOpenCount = useRef(0);
 
   useEffect(() => {
+    let active = true;
+    let timeoutId = null;
+
     const fetchData = () => {
+      const t0 = performance.now();
+      console.log('[DEBUG] Fetch /api/operations iniciando...');
       fetch(`/api/operations?page=${page}&limit=50`)
         .then(res => {
+          console.log(`[DEBUG] HTTP ${res.status} em ${(performance.now() - t0).toFixed(0)}ms`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json();
         })
         .then(resData => {
+          const elapsed = (performance.now() - t0).toFixed(0);
+          console.log(`[DEBUG] Dados recebidos em ${elapsed}ms:`, {
+            open: resData.open?.length,
+            closed: resData.closed?.length,
+            openDetails: resData.open?.map(o => ({
+              sym: o.symbol, score: o.score, rsi: o.rsi,
+              current: o.current_price, tp: o.tp_price, sl: o.sl_price,
+              entry_time: o.entry_time
+            }))
+          });
+          if (!active) return;
           if (resData.open.length > prevOpenCount.current && prevOpenCount.current > 0) {
             playNewTradeSound();
           }
           prevOpenCount.current = resData.open.length;
           setData(resData);
           setLoading(false);
+          // Próximo fetch 10s APÓS completar (evita pileup de requests)
+          timeoutId = setTimeout(fetchData, 10000);
         })
         .catch(err => {
-          console.error("Erro ao carregar operações (mantendo tela ativa):", err);
-          setLoading(false); // remove spinner na inicialização mesmo com erro
+          console.error(`[DEBUG] ERRO em ${(performance.now() - t0).toFixed(0)}ms:`, err);
+          if (!active) return;
+          setLoading(false);
+          timeoutId = setTimeout(fetchData, 10000);
         });
     };
     fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [page]);
 
   if (loading) return <div className="p-6"><Spinner /></div>;
