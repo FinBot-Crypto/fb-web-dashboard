@@ -37,7 +37,7 @@ function App() {
         </header>
 
         {/* Sidebar */}
-        <nav className={`w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between fixed md:relative h-screen z-10 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+        <nav className={`w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between fixed md:sticky md:top-0 h-screen z-10 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
           <div>
             <div className="mb-8 hidden md:block">
               <Logo />
