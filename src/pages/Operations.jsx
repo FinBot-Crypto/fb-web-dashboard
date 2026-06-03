@@ -176,6 +176,7 @@ export default function Operations() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [page, setPage] = useState(1);
+  const [btcTrend, setBtcTrend] = useState({ trend: "neutral" });
   const prevOpenCount = useRef(0);
 
   useEffect(() => {
@@ -226,6 +227,15 @@ export default function Operations() {
     };
   }, [page]);
 
+  useEffect(() => {
+    const fetchTrend = () => {
+      fetch('/api/btc-trend').then(r => r.json()).then(setBtcTrend).catch(() => {});
+    };
+    fetchTrend();
+    const id = setInterval(fetchTrend, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   if (loading) return <div className="p-6"><Spinner /></div>;
 
   const totalInvested = data.open.reduce((sum, o) => sum + (o.entry_price * o.quantity), 0);
@@ -265,6 +275,33 @@ export default function Operations() {
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Operações</h1>
+      
+      {/* BTC Trend Banner */}
+      {(() => {
+        const t = btcTrend;
+        if (!t.trend) return null;
+        const isBull = t.trend === 'bull';
+        const isBear = t.trend === 'bear';
+        return (
+          <div style={{
+            background: isBull ? 'rgba(16,185,129,0.1)' : isBear ? 'rgba(239,68,68,0.1)' : 'rgba(100,116,139,0.05)',
+            border: `1px solid ${isBull ? 'rgba(16,185,129,0.3)' : isBear ? 'rgba(239,68,68,0.3)' : 'rgba(100,116,139,0.2)'}`,
+            borderRadius: '12px', padding: '12px 20px', marginBottom: '20px',
+            display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <span style={{ fontSize: '20px' }}>{isBull ? '🐂' : isBear ? '🐻' : '➖'}</span>
+            <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '14px' }}>
+              {isBull ? 'BTC Bull' : isBear ? 'BTC Bear' : 'BTC Neutral'}
+            </span>
+            <span style={{ color: '#64748b', fontSize: '13px' }}>
+              ${t.btc_price?.toLocaleString()} | SMA(12) ${t.sma?.toLocaleString()} | {t.pct > 0 ? '+' : ''}{t.pct}%
+            </span>
+            <span style={{ color: '#475569', fontSize: '12px', marginLeft: 'auto' }}>
+              {isBull ? 'Só LONG' : isBear ? 'Só SHORT' : 'Ambos'}
+            </span>
+          </div>
+        );
+      })()}
 
       {selectedOrder && <TradeChart order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
 
