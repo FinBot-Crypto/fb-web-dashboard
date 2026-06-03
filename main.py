@@ -418,14 +418,14 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
 
         if min_model_score > 0:
             cur.execute("""
-                SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score
+                SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score, btc_trend
                 FROM shadow_short_metrics
                 WHERE model_score IS NOT NULL AND model_score >= %s
                 ORDER BY entry_ts DESC
             """, (min_model_score,))
         else:
             cur.execute("""
-                SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score
+                SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score, btc_trend
                 FROM shadow_short_metrics
                 ORDER BY entry_ts DESC
             """)
@@ -434,7 +434,7 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
         conn.close()
 
         if not rows:
-            return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "best_combo": None}
+            return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None}
 
         sltp_agg = {}
         rsi_agg = {}
@@ -442,14 +442,16 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
         tier_agg = {}
         symbol_agg = {}
         combo_agg = {}
+        trend_agg = {}
 
         for row in rows:
-            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms = row
+            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms, bt = row
             tier = tier or "Desconhecido"
             hour_e = int(hour_e) if hour_e is not None else None
             rsi_e = float(rsi_e) if rsi_e else None
             pnl = float(pnl) if pnl else 0
             model_score = float(ms) if ms is not None else None
+            btc_trend = bt or "neutral"
 
             sltp_key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
             if sltp_key not in sltp_agg:
@@ -479,6 +481,10 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
                 symbol_agg[symbol] = {"pnls": [], "count": 0}
             symbol_agg[symbol]["pnls"].append(pnl)
             symbol_agg[symbol]["count"] += 1
+
+            if btc_trend not in trend_agg:
+                trend_agg[btc_trend] = {"pnls": []}
+            trend_agg[btc_trend]["pnls"].append(pnl)
 
             if rsi_e is not None and hour_e is not None:
                 win = "Madrugada" if 0 <= hour_e < 6 else "Manha" if 6 <= hour_e < 12 else "Tarde" if 12 <= hour_e < 18 else "Noite"
@@ -522,6 +528,7 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
         ranking_tier = fmt_agg(tier_agg, "tier")
 
         ranking_symbol = fmt_agg(symbol_agg, "symbol")
+        ranking_trend_short = fmt_agg(trend_agg, "trend")
 
         best_combo = None
         candidates = []
@@ -544,6 +551,7 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
             "ranking_hour": ranking_hour,
             "ranking_tier": ranking_tier,
             "ranking_symbol": ranking_symbol,
+            "ranking_trend": ranking_trend_short,
             "best_combo": best_combo,
         }
     except Exception as e:
@@ -565,7 +573,7 @@ async def get_shadow_long_scan(min_model_score: float = 0):
         cur.close()
         conn.close()
         if not rows:
-            return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "best_combo": None}
+            return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None}
         sltp_agg, tier_agg, symbol_agg, combo_agg = {}, {}, {}, {}
         rsi_agg = {}
         hour_agg = {h: {"pnls": []} for h in range(24)}
@@ -630,7 +638,7 @@ async def get_shadow_metrics():
         conn = get_db_conn()
         cur = conn.cursor()
 
-        cur.execute("""SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score
+        cur.execute("""SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score, btc_trend
                        FROM shadow_long_scan WHERE model_score >= 0.65 ORDER BY entry_ts DESC""")
         rows = cur.fetchall()
         cur.close()
@@ -647,14 +655,15 @@ async def get_shadow_metrics():
             }
 
         sltp_agg, tier_agg, symbol_agg = {}, {}, {}
-        rsi_agg = {}
+        rsi_agg, trend_agg = {}, {}
         hour_agg = {h: {"pnls": []} for h in range(24)}
         for row in rows:
-            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms = row
+            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms, bt = row
             tier = tier or "Desconhecido"
             pnl = float(pnl) if pnl else 0
             rsi_e = float(rsi_e) if rsi_e else None
             hour_e = int(hour_e) if hour_e is not None else None
+            btc_trend = bt or "neutral"
             sltp_key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
             if sltp_key not in sltp_agg:
                 sltp_agg[sltp_key] = {"config": sltp_key, "sl": sl, "tp": tp, "pnls": []}
@@ -671,6 +680,9 @@ async def get_shadow_metrics():
                 rsi_agg[rl]["pnls"].append(pnl)
             if hour_e is not None:
                 hour_agg[hour_e]["pnls"].append(pnl)
+            if btc_trend not in trend_agg:
+                trend_agg[btc_trend] = {"pnls": []}
+            trend_agg[btc_trend]["pnls"].append(pnl)
 
         def fmt(agg, key, lim=15):
             out = []
@@ -685,6 +697,7 @@ async def get_shadow_metrics():
 
         ranking_sltp = fmt(sltp_agg, "config")
         ranking_tier = fmt(tier_agg, "tier")
+        ranking_trend = fmt(trend_agg, "trend")
         ranking_rsi = []
         for k in ["<25", "25-30", "30-35", "35+"]:
             v = rsi_agg.get(k, {"pnls": []})
@@ -696,7 +709,8 @@ async def get_shadow_metrics():
         ranking_hour_raw = [{"hour": h, "avg_pnl": round(sum(p) / len(p), 3) if (p := hour_agg[h]["pnls"]) else None, "count": len(p)} for h in range(24)]
         best_combo = ranking_sltp[0] if ranking_sltp else None
         return {"total_simulations": sum(len(v["pnls"]) for v in sltp_agg.values()), "ranking_sltp": ranking_sltp,
-                "ranking_tier": ranking_tier, "ranking_rsi": ranking_rsi, "ranking_hour": ranking_hour_raw, "best_combo": best_combo}
+                "ranking_tier": ranking_tier, "ranking_rsi": ranking_rsi, "ranking_hour": ranking_hour_raw,
+                "ranking_trend": ranking_trend, "best_combo": best_combo}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
