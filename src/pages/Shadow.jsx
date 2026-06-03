@@ -186,7 +186,7 @@ export default function Shadow() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
           <span style={{ fontSize: '28px' }}>⚗️</span>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>
-            Shadow Tests
+            Shadow LONG (modelo)
           </h1>
           {!noData && (
             <span style={{
