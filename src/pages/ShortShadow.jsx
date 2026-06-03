@@ -267,6 +267,34 @@ export default function ShortShadow() {
             </div>
           </div>
 
+          {(data?.ranking_trend && data.ranking_trend.length > 0) && (
+          <div style={sectionStyle}>
+            <h2 style={{ color: '#e2e8f0', fontSize: '17px', fontWeight: 700, marginTop: 0, marginBottom: '20px' }}>
+              📈 Tendencia do BTC (Short)
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              {data.ranking_trend.map(t => (
+                <div key={t.trend} style={{
+                  background: t.trend === 'bull' ? 'rgba(16,185,129,0.08)' : t.trend === 'bear' ? 'rgba(239,68,68,0.08)' : 'rgba(100,116,139,0.08)',
+                  border: `1px solid ${t.trend === 'bull' ? 'rgba(16,185,129,0.3)' : t.trend === 'bear' ? 'rgba(239,68,68,0.3)' : 'rgba(100,116,139,0.3)'}`,
+                  borderRadius: '12px', padding: '20px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>
+                    {t.trend === 'bull' ? '🐂' : t.trend === 'bear' ? '🐻' : '➖'}
+                  </div>
+                  <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '16px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    {t.trend === 'bull' ? 'Bull' : t.trend === 'bear' ? 'Bear' : 'Neutral'}
+                  </div>
+                  <div style={{ color: pnlColor(t.avg_pnl), fontSize: '24px', fontWeight: 800 }}>
+                    {pnlSign(t.avg_pnl)}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>{t.count} sims | WR {t.win_rate}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
             <div style={sectionStyle}>
               <h2 style={{ color: '#e2e8f0', fontSize: '17px', fontWeight: 700, marginTop: 0, marginBottom: '16px' }}>
