@@ -632,6 +632,30 @@ async def get_shadow_long_scan(min_model_score: float = 0):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/btc-trend")
+async def get_btc_trend():
+    try:
+        import ccxt
+        exchange = ccxt.binance({"enableRateLimit": True})
+        period = int(os.getenv("BTC_SMA_PERIOD", "12"))
+        ohlcv = exchange.fetch_ohlcv("BTC/USDT", "1h", limit=period + 10)
+        if not ohlcv or len(ohlcv) < period:
+            return {"trend": "neutral", "btc_price": 0, "sma": 0}
+        closes = [c[4] for c in ohlcv]
+        sma = sum(closes[-period:]) / period
+        current = closes[-1]
+        pct = (current / sma - 1) * 100
+        if current > sma * 1.01:
+            trend = "bull"
+        elif current < sma * 0.99:
+            trend = "bear"
+        else:
+            trend = "neutral"
+        return {"trend": trend, "btc_price": round(current, 2), "sma": round(sma, 2), "pct": round(pct, 2)}
+    except Exception as e:
+        return {"trend": "neutral", "error": str(e)}
+
+
 @app.get("/api/shadow")
 async def get_shadow_metrics():
     try:

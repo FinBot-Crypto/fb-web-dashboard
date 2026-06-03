@@ -17,6 +17,7 @@ export default function Dashboard() {
     curve: []
   });
   const [loading, setLoading] = useState(true);
+  const [btcTrend, setBtcTrend] = useState({ trend: "neutral", btc_price: 0, sma: 0, pct: 0 });
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -26,6 +27,19 @@ export default function Dashboard() {
         setLoading(false);
       })
       .catch(err => console.error(err));
+
+    fetch('/api/btc-trend')
+      .then(res => res.json())
+      .then(setBtcTrend)
+      .catch(() => {});
+
+    const trendInterval = setInterval(() => {
+      fetch('/api/btc-trend')
+        .then(res => res.json())
+        .then(setBtcTrend)
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(trendInterval);
   }, []);
 
   if (loading) {
@@ -36,8 +50,29 @@ export default function Dashboard() {
     <div className="p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Dashboard</h1>
       
-      {/* KPIs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
+       {/* KPIs Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6 mb-8">
+        {/* Card 0 - BTC Trend */}
+        {(() => {
+          const t = btcTrend;
+          const isBull = t.trend === 'bull';
+          const isBear = t.trend === 'bear';
+          const bg = isBull ? 'rgba(16,185,129,0.15)' : isBear ? 'rgba(239,68,68,0.15)' : 'rgba(100,116,139,0.1)';
+          const border = isBull ? '#10b981' : isBear ? '#ef4444' : '#64748b';
+          const icon = isBull ? '🐂' : isBear ? '🐻' : '➖';
+          const label = isBull ? 'BTC Bull' : isBear ? 'BTC Bear' : 'BTC Neutral';
+          return (
+            <div className="bg-slate-800 p-6 rounded-xl border transition-colors cursor-pointer" style={{ borderColor: border, background: bg }}>
+              <p className="text-slate-400 text-sm font-medium">{icon} {label}</p>
+              <p className="text-2xl font-bold mt-2" style={{ color: isBull ? '#10b981' : isBear ? '#ef4444' : '#94a3b8' }}>
+                ${t.btc_price?.toLocaleString()}
+              </p>
+              <span className="text-slate-400 text-xs font-medium">
+                SMA({12}) ${t.sma?.toLocaleString()} | {t.pct > 0 ? '+' : ''}{t.pct}%
+              </span>
+            </div>
+          );
+        })()}
         {/* Card 1 - Patrimônio */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Patrimônio Total</p>
