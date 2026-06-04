@@ -91,10 +91,61 @@ def _fetch_all_binance_data(symbols_to_fetch):
     print(f"[PERF] _fetch_all_binance_data TOTAL: {(t.time()-t0)*1000:.0f}ms")
     return current_prices, spot_balance, futures_balance
 
+
+def _fetch_dashboard_binance_data():
+    """Busca saldo real na Binance (Spot + Futures) + saldo BNB. Roda em thread separada."""
+    import time as t
+    spot_ex = _get_spot_ex()
+    futures_ex = _get_futures_ex()
+    
+    real_patrimony = 0.0
+    spot_balance_usdt = 0.0
+    futures_balance_usdt = 0.0
+    bnb_usd = 0.0
+    
+    t0 = t.time()
+    try:
+        balance = spot_ex.fetch_balance()
+        spot_balance_usdt = float(balance.get('free', {}).get('USDT', 0.0))
+        total_val_usdt = balance['total'].get('USDT', 0.0)
+        
+        # Somar o valor de outras moedas (incluindo BNB)
+        for asset, amount in balance['total'].items():
+            if amount > 0 and asset != 'USDT':
+                try:
+                    if asset == 'BNB':
+                        total_val_usdt += amount * spot_ex.fetch_ticker("BNB/USDT")['last']
+                    else:
+                        ticker = spot_ex.fetch_ticker(f"{asset}/USDT")
+                        total_val_usdt += amount * ticker['last']
+                except:
+                    pass
+        real_patrimony = round(total_val_usdt, 2)
+        
+        # Saldo BNB separado
+        bnb_amount = balance['total'].get('BNB', 0.0)
+        if bnb_amount > 0:
+            try:
+                bnb_usd = round(bnb_amount * spot_ex.fetch_ticker("BNB/USDT")['last'], 2)
+            except:
+                pass
+    except Exception as e:
+        print(f"[PERF] ERRO ao buscar saldos Spot no dashboard: {e}")
+        
+    try:
+        f_bal = futures_ex.fetch_balance()
+        futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
+    except Exception as e:
+        print(f"[PERF] ERRO ao buscar saldos Futures no dashboard: {e}")
+        
+    print(f"[PERF] _fetch_dashboard_binance_data TOTAL: {(t.time()-t0)*1000:.0f}ms")
+    return real_patrimony, spot_balance_usdt, futures_balance_usdt, bnb_usd
+
 # Endpoints da API
 
 @app.get("/api/dashboard")
 async def get_dashboard_data():
+    conn = None
     try:
         conn = get_db_conn()
         cur = conn.cursor()
@@ -155,11 +206,8 @@ async def get_dashboard_data():
         win_rate = (wins / total_closed * 100) if total_closed > 0 else 0
         
         # Formatar Rankings
-        # Melhores moedas por PnL em dinheiro
         best_coins = sorted(coin_stats.values(), key=lambda x: x["pnl"], reverse=True)[:5]
         worst_coins = sorted(coin_stats.values(), key=lambda x: x["pnl"])[:5]
-        
-        # Mais operadas
         most_traded = sorted(coin_stats.values(), key=lambda x: x["total"], reverse=True)[:5]
         
         # Posições ativas
@@ -175,90 +223,43 @@ async def get_dashboard_data():
             })
             
         cur.close()
-        conn.close()
-        
-        # Buscar saldo real na Binance (Spot + Futures)
-        real_patrimony = 0
-        spot_balance_usdt = 0.0
-        futures_balance_usdt = 0.0
-        bnb_usd = 0
-        try:
-            exchange = ccxt.binance({
-                'apiKey': os.getenv("BINANCE_API_KEY"),
-                'secret': os.getenv("BINANCE_API_SECRET"),
-                'enableRateLimit': True,
-            })
-            futures_exchange = ccxt.binance({
-                'apiKey': os.getenv("BINANCE_API_KEY"),
-                'secret': os.getenv("BINANCE_API_SECRET"),
-                'enableRateLimit': True,
-                'options': {
-                    'defaultType': 'future'
-                }
-            })
-            
-            # Saldo Spot
-            balance = exchange.fetch_balance()
-            spot_balance_usdt = float(balance.get('free', {}).get('USDT', 0.0))
-            total_val_usdt = balance['total'].get('USDT', 0)
-            
-            # Somar o valor de outras moedas (incluindo BNB)
-            for asset, amount in balance['total'].items():
-                if amount > 0 and asset != 'USDT':
-                    try:
-                        if asset == 'BNB':
-                            total_val_usdt += amount * exchange.fetch_ticker("BNB/USDT")['last']
-                        else:
-                            ticker = exchange.fetch_ticker(f"{asset}/USDT")
-                            total_val_usdt += amount * ticker['last']
-                    except:
-                        pass
-            real_patrimony = round(total_val_usdt, 2)
-            
-            # Saldo Futures
-            try:
-                f_bal = futures_exchange.fetch_balance()
-                futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
-            except Exception as ef:
-                print(f"Erro ao buscar saldo Futures no dashboard: {ef}")
-
-            # Saldo BNB separado
-            bnb_amount = balance['total'].get('BNB', 0)
-            if bnb_amount > 0:
-                try:
-                    bnb_usd = round(bnb_amount * exchange.fetch_ticker("BNB/USDT")['last'], 2)
-                except:
-                    pass
-        except Exception as e:
-            print(f"Erro ao buscar saldos na Binance: {e}")
-            
-        return {
-            "total_pnl_money": round(total_pnl_money, 2),
-            "win_rate": round(win_rate, 1),
-            "total_closed": total_closed,
-            "wins": wins,
-            "losses": losses,
-            "active_positions": active_positions,
-            "patrimony": real_patrimony,
-            "spot_balance": round(spot_balance_usdt, 2),
-            "futures_balance": round(futures_balance_usdt, 2),
-            "bnb_balance": bnb_usd,
-            "rankings": {
-                "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
-                "worst": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in worst_coins],
-                "most_traded": [{"symbol": x["symbol"], "wins": x["wins"], "losses": x["losses"], "total": x["total"]} for x in most_traded]
-            },
-            "curve": curve_data
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+    # Buscar saldo real na Binance (Spot + Futures) em thread (não bloqueia event loop)
+    real_patrimony, spot_balance_usdt, futures_balance_usdt, bnb_usd = await asyncio.to_thread(
+        _fetch_dashboard_binance_data
+    )
+        
+    return {
+        "total_pnl_money": round(total_pnl_money, 2),
+        "win_rate": round(win_rate, 1),
+        "total_closed": total_closed,
+        "wins": wins,
+        "losses": losses,
+        "active_positions": active_positions,
+        "patrimony": real_patrimony,
+        "spot_balance": round(spot_balance_usdt, 2),
+        "futures_balance": round(futures_balance_usdt, 2),
+        "bnb_balance": bnb_usd,
+        "rankings": {
+            "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
+            "worst": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in worst_coins],
+            "most_traded": [{"symbol": x["symbol"], "wins": x["wins"], "losses": x["losses"], "total": x["total"]} for x in most_traded]
+        },
+        "curve": curve_data
+    }
 
 
 
 @app.get("/api/operations")
 async def get_operations(page: int = 1, limit: int = 50):
+    t_start = _time.time()
+    conn = None
     try:
-        t_start = _time.time()
         conn = get_db_conn()
         cur = conn.cursor()
         
@@ -295,123 +296,124 @@ async def get_operations(page: int = 1, limit: int = 50):
         """)
         total_pnl = round(cur.fetchone()[0], 2)
         
-        t_db = _time.time()
-        print(f"[PERF] DB queries: {(t_db - t_start)*1000:.0f}ms")
-
-        # Buscar SL/TP do KV (NATS)
-        kv_data = {}
-        current_prices = {}
-        symbols_to_fetch = []
-        try:
-            nc = await get_nats()
-            js = nc.jetstream()
-            kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=2.0)
-            keys = await kv.keys()
-            
-            for k in keys:
-                try:
-                    entry = await kv.get(k)
-                    if entry:
-                        pos = json.loads(entry.value.decode())
-                        sym = pos.get("symbol", "")
-                        if sym:
-                            symbols_to_fetch.append(sym)
-                            kv_data[sym] = {
-                                "sl_price": pos.get("sl_price"),
-                                "tp_price": pos.get("tp_price"),
-                                "entry_time": pos.get("entry_time"),
-                                "is_futures": pos.get("is_futures", False),
-                                "leverage": pos.get("leverage", 1),
-                                "score": pos.get("score"),
-                                "rsi": pos.get("rsi")
-                            }
-                except Exception as entry_err:
-                    print(f"[PERF] Erro KV key: {entry_err}")
-        except Exception as e:
-            print(f"[PERF] Erro KV: {e}")
-
-        t_kv = _time.time()
-        print(f"[PERF] NATS KV: {(t_kv - t_db)*1000:.0f}ms ({len(symbols_to_fetch)} symbols: {symbols_to_fetch})")
-
-        # Busca tickers + saldos Binance em thread separada (não bloqueia event loop)
-        binance_prices, spot_balance_usdt, futures_balance_usdt = await asyncio.to_thread(
-            _fetch_all_binance_data, symbols_to_fetch
-        )
-        current_prices.update(binance_prices)
-
-        t_api = _time.time()
-        print(f"[PERF] Binance API (thread): {(t_api - t_kv)*1000:.0f}ms")
-        
-        open_orders = []
-        closed_orders = []
-        
-        for row in rows:
-            order = {
-                "id": row[0],
-                "symbol": row[1],
-                "status": row[2],
-                "entry_price": row[3],
-                "exit_price": row[4],
-                "quantity": row[5],
-                "exit_reason": row[6],
-                "pnl_pct": row[7],
-                "created_at": row[8].strftime("%d/%m %H:%M") if row[8] else "",
-                "updated_at": row[9].strftime("%d/%m %H:%M") if row[9] else "",
-                "is_futures": row[10] if len(row) > 10 else False,
-                "leverage": row[11] if len(row) > 11 else 1,
-                "score": row[12] if len(row) > 12 else None,
-                "rsi": row[13] if len(row) > 13 else None
-            }
-            if row[2] == "OPEN":
-                # Adicionar SL/TP do KV
-                kv_info = kv_data.get(row[1], {})
-                order["sl_price"] = kv_info.get("sl_price")
-                order["tp_price"] = kv_info.get("tp_price")
-                order["entry_time"] = kv_info.get("entry_time")
-                order["is_futures"] = kv_info.get("is_futures", order.get("is_futures", False))
-                order["leverage"] = kv_info.get("leverage", order.get("leverage", 1))
-                # Fallback para o valor retornado do banco caso não exista no KV
-                order["score"] = kv_info.get("score") if kv_info.get("score") is not None else order.get("score")
-                order["rsi"] = kv_info.get("rsi") if kv_info.get("rsi") is not None else order.get("rsi")
-                order["current_price"] = current_prices.get(row[1])
-                # W/L histórico
-                wl = coin_wl.get(row[1], {})
-                order["coin_wins"] = wl.get("wins", 0)
-                order["coin_losses"] = wl.get("losses", 0)
-                order["coin_total"] = wl.get("total", 0)
-                open_orders.append(order)
-            else:
-                closed_orders.append(order)
-                
         cur.close()
-        conn.close()
-        
-        max_hold_hours = float(os.getenv("MAX_HOLD_HOURS", "12"))
-
-        # spot_balance_usdt e futures_balance_usdt já obtidos no _fetch_all_binance_data
-
-        t_total = _time.time()
-        print(f"[PERF] /api/operations TOTAL: {(t_total - t_start)*1000:.0f}ms (open={len(open_orders)}, closed={len(closed_orders)}, prices={len(current_prices)})")
-
-        return {
-            "open": open_orders,
-            "closed": closed_orders,
-            "total_open": total_open,
-            "total_closed": total_closed,
-            "total_pnl": total_pnl,
-            "page": page,
-            "limit": limit,
-            "max_hold_hours": max_hold_hours,
-            "spot_balance": round(spot_balance_usdt, 2),
-            "futures_balance": round(futures_balance_usdt, 2)
-        }
     except Exception as e:
         import traceback
-        print(f"[PERF] /api/operations ERRO: {e}\n{traceback.format_exc()}")
+        print(f"[PERF] /api/operations ERRO DB: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+            
+    t_db = _time.time()
+    print(f"[PERF] DB queries: {(t_db - t_start)*1000:.0f}ms")
+
+    # Buscar SL/TP do KV (NATS)
+    kv_data = {}
+    current_prices = {}
+    symbols_to_fetch = []
+    try:
+        nc = await get_nats()
+        js = nc.jetstream()
+        kv = await asyncio.wait_for(js.key_value("active_positions"), timeout=2.0)
+        keys = await kv.keys()
+        
+        for k in keys:
+            try:
+                entry = await kv.get(k)
+                if entry:
+                    pos = json.loads(entry.value.decode())
+                    sym = pos.get("symbol", "")
+                    if sym:
+                        symbols_to_fetch.append(sym)
+                        kv_data[sym] = {
+                            "sl_price": pos.get("sl_price"),
+                            "tp_price": pos.get("tp_price"),
+                            "entry_time": pos.get("entry_time"),
+                            "is_futures": pos.get("is_futures", False),
+                            "leverage": pos.get("leverage", 1),
+                            "score": pos.get("score"),
+                            "rsi": pos.get("rsi")
+                        }
+            except Exception as entry_err:
+                print(f"[PERF] Erro KV key: {entry_err}")
+    except Exception as e:
+        print(f"[PERF] Erro KV: {e}")
+
+    t_kv = _time.time()
+    print(f"[PERF] NATS KV: {(t_kv - t_db)*1000:.0f}ms ({len(symbols_to_fetch)} symbols: {symbols_to_fetch})")
+
+    # Busca tickers + saldos Binance em thread separada (não bloqueia event loop)
+    binance_prices, spot_balance_usdt, futures_balance_usdt = await asyncio.to_thread(
+        _fetch_all_binance_data, symbols_to_fetch
+    )
+    current_prices.update(binance_prices)
+
+    t_api = _time.time()
+    print(f"[PERF] Binance API (thread): {(t_api - t_kv)*1000:.0f}ms")
+    
+    open_orders = []
+    closed_orders = []
+    
+    for row in rows:
+        order = {
+            "id": row[0],
+            "symbol": row[1],
+            "status": row[2],
+            "entry_price": row[3],
+            "exit_price": row[4],
+            "quantity": row[5],
+            "exit_reason": row[6],
+            "pnl_pct": row[7],
+            "created_at": row[8].strftime("%d/%m %H:%M") if row[8] else "",
+            "updated_at": row[9].strftime("%d/%m %H:%M") if row[9] else "",
+            "is_futures": row[10] if len(row) > 10 else False,
+            "leverage": row[11] if len(row) > 11 else 1,
+            "score": row[12] if len(row) > 12 else None,
+            "rsi": row[13] if len(row) > 13 else None
+        }
+        if row[2] == "OPEN":
+            # Adicionar SL/TP do KV
+            kv_info = kv_data.get(row[1], {})
+            order["sl_price"] = kv_info.get("sl_price")
+            order["tp_price"] = kv_info.get("tp_price")
+            order["entry_time"] = kv_info.get("entry_time")
+            order["is_futures"] = kv_info.get("is_futures", order.get("is_futures", False))
+            order["leverage"] = kv_info.get("leverage", order.get("leverage", 1))
+            # Fallback para o valor retornado do banco caso não exista no KV
+            order["score"] = kv_info.get("score") if kv_info.get("score") is not None else order.get("score")
+            order["rsi"] = kv_info.get("rsi") if kv_info.get("rsi") is not None else order.get("rsi")
+            order["current_price"] = current_prices.get(row[1])
+            # W/L histórico
+            wl = coin_wl.get(row[1], {})
+            order["coin_wins"] = wl.get("wins", 0)
+            order["coin_losses"] = wl.get("losses", 0)
+            order["coin_total"] = wl.get("total", 0)
+            open_orders.append(order)
+        else:
+            closed_orders.append(order)
+            
+    max_hold_hours = float(os.getenv("MAX_HOLD_HOURS", "12"))
+
+    t_total = _time.time()
+    print(f"[PERF] /api/operations TOTAL: {(t_total - t_start)*1000:.0f}ms (open={len(open_orders)}, closed={len(closed_orders)}, prices={len(current_prices)})")
+
+    return {
+        "open": open_orders,
+        "closed": closed_orders,
+        "total_open": total_open,
+        "total_closed": total_closed,
+        "total_pnl": total_pnl,
+        "page": page,
+        "limit": limit,
+        "max_hold_hours": max_hold_hours,
+        "spot_balance": round(spot_balance_usdt, 2),
+        "futures_balance": round(futures_balance_usdt, 2)
+    }
 
 @app.get("/api/shadow-short")
 async def get_shadow_short_metrics(min_model_score: float = 0):
+    conn = None
     try:
         conn = get_db_conn()
         cur = conn.cursor()
@@ -431,7 +433,6 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
             """)
         rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         if not rows:
             return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None}
@@ -556,10 +557,14 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.get("/api/shadow-long-scan")
 async def get_shadow_long_scan(min_model_score: float = 0):
+    conn = None
     try:
         conn = get_db_conn()
         cur = conn.cursor()
@@ -571,7 +576,6 @@ async def get_shadow_long_scan(min_model_score: float = 0):
                            FROM shadow_long_scan ORDER BY entry_ts DESC""")
         rows = cur.fetchall()
         cur.close()
-        conn.close()
         if not rows:
             return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None}
         sltp_agg, tier_agg, symbol_agg, combo_agg = {}, {}, {}, {}
@@ -630,6 +634,9 @@ async def get_shadow_long_scan(min_model_score: float = 0):
                 "ranking_hour": rhour, "ranking_tier": rtier, "ranking_symbol": rsym, "best_combo": rsltp[0] if rsltp else None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.get("/api/btc-trend")
@@ -658,6 +665,7 @@ async def get_btc_trend():
 
 @app.get("/api/shadow")
 async def get_shadow_metrics():
+    conn = None
     try:
         conn = get_db_conn()
         cur = conn.cursor()
@@ -666,7 +674,6 @@ async def get_shadow_metrics():
                        FROM shadow_long_scan WHERE model_score >= 0.65 ORDER BY entry_ts DESC""")
         rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         if not rows:
             return {
@@ -737,6 +744,9 @@ async def get_shadow_metrics():
                 "ranking_trend": ranking_trend, "best_combo": best_combo}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
 
 
 
@@ -770,9 +780,9 @@ async def get_live_flow():
 async def get_status():
     # Aqui poderíamos pingar o NATS ou verificar containers
     # Por enquanto retorna que está tudo online se o DB conectar
+    conn = None
     try:
         conn = get_db_conn()
-        conn.close()
         return {
             "services": [
                 {"name": "fb-trade-decision", "status": "Online"},
@@ -789,6 +799,9 @@ async def get_status():
                 {"name": "crypto-postgres", "status": "Offline"}
             ]
         }
+    finally:
+        if conn:
+            conn.close()
 
 # Servir arquivos estáticos do Frontend (React)
 from fastapi.staticfiles import StaticFiles
