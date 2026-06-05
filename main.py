@@ -803,6 +803,102 @@ async def get_status():
         if conn:
             conn.close()
 
+
+@app.get("/api/insights")
+async def get_insights(
+    page: int = 1,
+    limit: int = 50,
+    symbol: str = None,
+    decision: str = None,
+    trend: str = None
+):
+    conn = None
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor()
+        
+        # Build query
+        where_clauses = []
+        params = []
+        
+        if symbol:
+            where_clauses.append("e.symbol ILIKE %s")
+            params.append(f"%{symbol}%")
+        if decision:
+            where_clauses.append("e.decision = %s")
+            params.append(decision)
+        if trend:
+            where_clauses.append("e.btc_trend = %s")
+            params.append(trend)
+            
+        where_str = ""
+        if where_clauses:
+            where_str = "WHERE " + " AND ".join(where_clauses)
+            
+        # Count total
+        count_query = f"SELECT COUNT(*) FROM evaluations_log e {where_str}"
+        cur.execute(count_query, tuple(params))
+        total_records = cur.fetchone()[0]
+        
+        # Fetch paginated
+        offset = (page - 1) * limit
+        query = f"""
+            SELECT 
+                e.id, e.symbol, e.tier, e.strategy, e.direction, e.score, e.rsi, e.btc_trend, e.decision, e.created_at,
+                t.id, t.status, t.entry_price, t.exit_price, t.pnl_pct, t.exit_reason, t.is_futures, t.leverage, t.quantity, t.created_at
+            FROM evaluations_log e
+            LEFT JOIN trade_log t ON e.symbol = t.symbol 
+              AND t.created_at >= e.created_at - INTERVAL '5 minutes'
+              AND t.created_at <= e.created_at + INTERVAL '5 minutes'
+            {where_str}
+            ORDER BY e.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        cur.execute(query, tuple(params + [limit, offset]))
+        rows = cur.fetchall()
+        cur.close()
+        
+        items = []
+        for r in rows:
+            items.append({
+                "id": r[0],
+                "symbol": r[1],
+                "tier": r[2],
+                "strategy": r[3],
+                "direction": r[4],
+                "score": r[5],
+                "rsi": r[6],
+                "btc_trend": r[7],
+                "decision": r[8],
+                "created_at": r[9].strftime("%Y-%m-%d %H:%M:%S") if r[9] else "",
+                "trade": {
+                    "id": r[10],
+                    "status": r[11],
+                    "entry_price": r[12],
+                    "exit_price": r[13],
+                    "pnl_pct": r[14],
+                    "exit_reason": r[15],
+                    "is_futures": r[16],
+                    "leverage": r[17],
+                    "quantity": r[18],
+                    "created_at": r[19].strftime("%Y-%m-%d %H:%M:%S") if r[19] else ""
+                } if r[10] is not None else None
+            })
+            
+        return {
+            "total": total_records,
+            "page": page,
+            "limit": limit,
+            "items": items
+        }
+    except Exception as e:
+        import traceback
+        print(f"Erro ao buscar insights: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
 # Servir arquivos estáticos do Frontend (React)
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse

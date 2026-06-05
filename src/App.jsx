@@ -6,6 +6,7 @@ import Shadow from './pages/Shadow';
 import ShortShadow from './pages/ShortShadow';
 import Status from './pages/Status';
 import LiveFlow from './pages/LiveFlow';
+import Insights from './pages/Insights';
 import { Logo } from './components/UI';
 
 function App() {
@@ -52,8 +53,14 @@ function App() {
               </li>
               <li>
                 <Link to="/operations" onClick={closeSidebar} className="text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg block transition-colors flex items-center gap-3">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                   Operações
+                </Link>
+              </li>
+              <li>
+                <Link to="/insights" onClick={closeSidebar} className="text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-3 rounded-lg block transition-colors flex items-center gap-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg>
+                  Insights Modelos
                 </Link>
               </li>
               <li>
@@ -101,6 +108,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/operations" element={<Operations />} />
+            <Route path="/insights" element={<Insights />} />
             <Route path="/shadow" element={<Shadow />} />
             <Route path="/shadow-short" element={<ShortShadow />} />
             <Route path="/live" element={<LiveFlow />} />
