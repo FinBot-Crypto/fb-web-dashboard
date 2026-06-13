@@ -277,7 +277,7 @@ async def get_operations(page: int = 1, limit: int = 50):
                    exit_reason, pnl_pct, 
                    created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
                    updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
-                   is_futures, leverage, score, rsi
+                   is_futures, leverage, score, rsi, direction
             FROM trade_log 
             ORDER BY created_at DESC LIMIT %s OFFSET %s;
         """, (limit, offset))
@@ -374,7 +374,8 @@ async def get_operations(page: int = 1, limit: int = 50):
             "is_futures": row[10] if len(row) > 10 else False,
             "leverage": row[11] if len(row) > 11 else 1,
             "score": row[12] if len(row) > 12 else None,
-            "rsi": row[13] if len(row) > 13 else None
+            "rsi": row[13] if len(row) > 13 else None,
+            "direction": row[14] if len(row) > 14 else "LONG"
         }
         if row[2] == "OPEN":
             # Adicionar SL/TP do KV

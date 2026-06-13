@@ -72,6 +72,7 @@ export default function Insights() {
       'REJECTED_SCORE': 'bg-red-500/20 text-red-400 border border-red-500/30',
       'REJECTED_PENALTY': 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
       'REJECTED_RSI': 'bg-pink-500/20 text-pink-400 border border-pink-500/30',
+      'REJECTED_COOLDOWN': 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
       'REJECTED_NO_DATA': 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
     };
 
@@ -82,6 +83,7 @@ export default function Insights() {
       'REJECTED_SCORE': 'Score Baixo',
       'REJECTED_PENALTY': 'Penalidade Risco',
       'REJECTED_RSI': 'RSI Rejeitado',
+      'REJECTED_COOLDOWN': 'Cooldown Stop Loss',
       'REJECTED_NO_DATA': 'Sem Dados'
     };
 
@@ -186,6 +188,7 @@ export default function Insights() {
               <option value="REJECTED_SCORE">Score Insuficiente</option>
               <option value="REJECTED_PENALTY">Penalidade de Risco</option>
               <option value="REJECTED_RSI">RSI Inadequado</option>
+              <option value="REJECTED_COOLDOWN">Cooldown Stop Loss</option>
               <option value="REJECTED_NO_DATA">Sem Dados</option>
             </select>
           </div>
