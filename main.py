@@ -152,7 +152,8 @@ async def get_dashboard_data():
         
         # Puxar todos os trades fechados para calcular os dados reais em dinheiro
         cur.execute("""
-            SELECT symbol, pnl_pct, entry_price, quantity, updated_at 
+            SELECT symbol, pnl_pct, entry_price, quantity, 
+                   updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo'
             FROM trade_log 
             WHERE status = 'CLOSED'
             ORDER BY updated_at ASC;
@@ -273,7 +274,10 @@ async def get_operations(page: int = 1, limit: int = 50):
         
         cur.execute("""
             SELECT id, symbol, status, entry_price, exit_price, quantity, 
-                   exit_reason, pnl_pct, created_at, updated_at, is_futures, leverage, score, rsi
+                   exit_reason, pnl_pct, 
+                   created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
+                   updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
+                   is_futures, leverage, score, rsi
             FROM trade_log 
             ORDER BY created_at DESC LIMIT %s OFFSET %s;
         """, (limit, offset))
@@ -844,8 +848,10 @@ async def get_insights(
         offset = (page - 1) * limit
         query = f"""
             SELECT 
-                e.id, e.symbol, e.tier, e.strategy, e.direction, e.score, e.rsi, e.btc_trend, e.decision, e.created_at,
-                t.id, t.status, t.entry_price, t.exit_price, t.pnl_pct, t.exit_reason, t.is_futures, t.leverage, t.quantity, t.created_at
+                e.id, e.symbol, e.tier, e.strategy, e.direction, e.score, e.rsi, e.btc_trend, e.decision, 
+                e.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo',
+                t.id, t.status, t.entry_price, t.exit_price, t.pnl_pct, t.exit_reason, t.is_futures, t.leverage, t.quantity, 
+                t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo'
             FROM evaluations_log e
             LEFT JOIN trade_log t ON e.symbol = t.symbol 
               AND t.created_at >= e.created_at - INTERVAL '5 minutes'
