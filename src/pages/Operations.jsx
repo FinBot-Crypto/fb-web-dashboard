@@ -330,7 +330,7 @@ export default function Operations() {
         <div>
           <div className="text-slate-400 text-sm">Saldo Spot</div>
           <div className="text-blue-400 text-xl font-bold">${data.spot_balance}</div>
-          <div className="text-xs text-slate-500 mt-1">Livre: ${data.spot_balance_free} | Uso: ${data.spot_balance_used}</div>
+          <div className="text-xs text-slate-500 mt-1">Livre: ${data.spot_balance_free} | Uso: ${data.spot_balance_used} | BNB: ${data.bnb_balance}</div>
         </div>
         <div>
           <div className="text-slate-400 text-sm">Saldo Futures</div>

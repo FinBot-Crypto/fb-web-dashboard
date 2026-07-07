@@ -413,7 +413,8 @@ async def get_operations(page: int = 1, limit: int = 50):
         "spot_balance_used": round(spot_balances["used"], 2),
         "futures_balance": round(futures_balances["total"], 2),
         "futures_balance_free": round(futures_balances["free"], 2),
-        "futures_balance_used": round(futures_balances["used"], 2)
+        "futures_balance_used": round(futures_balances["used"], 2),
+        "bnb_balance": round(spot_balances["bnb_usd"], 2)
     }
 
 @app.get("/api/shadow-short")

@@ -89,7 +89,7 @@ export default function Dashboard() {
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Saldo Spot (USDT)</p>
           <p className="text-2xl font-bold text-blue-400 mt-2">${data.spot_balance}</p>
-          <span className="text-slate-400 text-xs font-medium">Livre: ${data.spot_balance_free} | Em uso: ${data.spot_balance_used}</span>
+          <span className="text-slate-400 text-xs font-medium">Livre: ${data.spot_balance_free} | Em uso: ${data.spot_balance_used} | BNB: ${data.bnb_balance}</span>
         </div>
 
         {/* Card 3 - Saldo Futures */}
