@@ -172,7 +172,7 @@ function TradeChart({ order, onClose }) {
 }
 
 export default function Operations() {
-  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12, spot_balance: 0, futures_balance: 0 });
+  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12, spot_balance: 0, spot_balance_free: 0, spot_balance_used: 0, futures_balance: 0, futures_balance_free: 0, futures_balance_used: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [page, setPage] = useState(1);
@@ -330,10 +330,12 @@ export default function Operations() {
         <div>
           <div className="text-slate-400 text-sm">Saldo Spot</div>
           <div className="text-blue-400 text-xl font-bold">${data.spot_balance}</div>
+          <div className="text-xs text-slate-500 mt-1">Livre: ${data.spot_balance_free} | Uso: ${data.spot_balance_used}</div>
         </div>
         <div>
           <div className="text-slate-400 text-sm">Saldo Futures</div>
           <div className="text-purple-400 text-xl font-bold">${data.futures_balance}</div>
+          <div className="text-xs text-slate-500 mt-1">Livre: ${data.futures_balance_free} | Uso: ${data.futures_balance_used}</div>
         </div>
       </div>
 

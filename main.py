@@ -54,63 +54,14 @@ def _get_futures_ex():
         })
     return _cached_futures_ex
 
-def _fetch_all_binance_data(symbols_to_fetch):
-    """Busca tickers + saldos Spot/Futures. Roda em thread separada via asyncio.to_thread."""
-    import time as t
-    current_prices = {}
-    spot_balance = 0.0
-    futures_balance = 0.0
-
-    t0 = t.time()
-    if symbols_to_fetch:
-        try:
-            tickers = _get_spot_ex().fetch_tickers(symbols_to_fetch)
-            for sym in symbols_to_fetch:
-                if sym in tickers:
-                    current_prices[sym] = tickers[sym].get("last")
-            print(f"[PERF] fetch_tickers({len(symbols_to_fetch)}): {(t.time()-t0)*1000:.0f}ms → {list(current_prices.keys())}")
-        except Exception as e:
-            print(f"[PERF] ERRO fetch_tickers: {e} ({(t.time()-t0)*1000:.0f}ms)")
-
-    t1 = t.time()
+def _get_binance_balances(spot_ex, futures_ex):
+    spot_total, spot_free, spot_used, bnb_usd = 0.0, 0.0, 0.0, 0.0
+    futures_total, futures_free, futures_used = 0.0, 0.0, 0.0
     try:
-        bal = _get_spot_ex().fetch_balance()
-        spot_balance = float(bal.get('free', {}).get('USDT', 0.0))
-        print(f"[PERF] fetch_balance(spot): {(t.time()-t1)*1000:.0f}ms → ${spot_balance:.2f}")
-    except Exception as e:
-        print(f"[PERF] ERRO spot_balance: {e}")
-
-    t2 = t.time()
-    try:
-        f_bal = _get_futures_ex().fetch_balance()
-        futures_balance = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
-        print(f"[PERF] fetch_balance(futures): {(t.time()-t2)*1000:.0f}ms → ${futures_balance:.2f}")
-    except Exception as e:
-        print(f"[PERF] ERRO futures_balance: {e}")
-
-    print(f"[PERF] _fetch_all_binance_data TOTAL: {(t.time()-t0)*1000:.0f}ms")
-    return current_prices, spot_balance, futures_balance
-
-
-def _fetch_dashboard_binance_data():
-    """Busca saldo real na Binance (Spot + Futures) + saldo BNB. Roda em thread separada."""
-    import time as t
-    spot_ex = _get_spot_ex()
-    futures_ex = _get_futures_ex()
-    
-    real_patrimony = 0.0
-    spot_balance_usdt = 0.0
-    futures_balance_usdt = 0.0
-    bnb_usd = 0.0
-    
-    t0 = t.time()
-    try:
-        balance = spot_ex.fetch_balance()
-        spot_balance_usdt = float(balance.get('free', {}).get('USDT', 0.0))
-        total_val_usdt = balance['total'].get('USDT', 0.0)
-        
-        # Somar o valor de outras moedas (incluindo BNB)
-        for asset, amount in balance['total'].items():
+        spot_bal = spot_ex.fetch_balance()
+        spot_free = float(spot_bal.get('USDT', {}).get('free', 0.0))
+        total_val_usdt = spot_bal['total'].get('USDT', 0.0)
+        for asset, amount in spot_bal['total'].items():
             if amount > 0 and asset != 'USDT':
                 try:
                     if asset == 'BNB':
@@ -120,26 +71,67 @@ def _fetch_dashboard_binance_data():
                         total_val_usdt += amount * ticker['last']
                 except:
                     pass
-        real_patrimony = round(total_val_usdt, 2)
+        spot_total = round(total_val_usdt, 2)
         
         # Saldo BNB separado
-        bnb_amount = balance['total'].get('BNB', 0.0)
+        bnb_amount = spot_bal['total'].get('BNB', 0.0)
         if bnb_amount > 0:
             try:
                 bnb_usd = round(bnb_amount * spot_ex.fetch_ticker("BNB/USDT")['last'], 2)
             except:
                 pass
+                
+        spot_used = round(spot_total - spot_free - bnb_usd, 2)
+        if spot_used < 0:
+            spot_used = 0.0
     except Exception as e:
-        print(f"[PERF] ERRO ao buscar saldos Spot no dashboard: {e}")
-        
+        print(f"[PERF] ERRO ao buscar saldos Spot: {e}")
+
     try:
         f_bal = futures_ex.fetch_balance()
-        futures_balance_usdt = float(f_bal.get('USDT', {}).get('free', f_bal.get('free', {}).get('USDT', 0.0)))
+        usdt_info = f_bal.get('USDT', {})
+        futures_total = float(usdt_info.get('total', 0.0))
+        futures_free = float(usdt_info.get('free', 0.0))
+        futures_used = float(usdt_info.get('used', 0.0))
     except Exception as e:
-        print(f"[PERF] ERRO ao buscar saldos Futures no dashboard: {e}")
-        
+        print(f"[PERF] ERRO ao buscar saldos Futures: {e}")
+
+    return {
+        "total": spot_total,
+        "free": spot_free,
+        "used": spot_used,
+        "bnb_usd": bnb_usd
+    }, {
+        "total": futures_total,
+        "free": futures_free,
+        "used": futures_used
+    }
+
+def _fetch_all_binance_data(symbols_to_fetch):
+    """Busca tickers + saldos Spot/Futures. Roda em thread separada via asyncio.to_thread."""
+    import time as t
+    current_prices = {}
+    t0 = t.time()
+    if symbols_to_fetch:
+        try:
+            tickers = _get_spot_ex().fetch_tickers(symbols_to_fetch)
+            for sym in symbols_to_fetch:
+                if sym in tickers:
+                    current_prices[sym] = tickers[sym].get("last")
+        except Exception as e:
+            print(f"[PERF] ERRO fetch_tickers: {e}")
+
+    spot_balances, futures_balances = _get_binance_balances(_get_spot_ex(), _get_futures_ex())
+    print(f"[PERF] _fetch_all_binance_data TOTAL: {(t.time()-t0)*1000:.0f}ms")
+    return current_prices, spot_balances, futures_balances
+
+def _fetch_dashboard_binance_data():
+    """Busca saldo real na Binance (Spot + Futures) + saldo BNB. Roda em thread separada."""
+    import time as t
+    t0 = t.time()
+    spot_balances, futures_balances = _get_binance_balances(_get_spot_ex(), _get_futures_ex())
     print(f"[PERF] _fetch_dashboard_binance_data TOTAL: {(t.time()-t0)*1000:.0f}ms")
-    return real_patrimony, spot_balance_usdt, futures_balance_usdt, bnb_usd
+    return spot_balances["total"], spot_balances, futures_balances, spot_balances["bnb_usd"]
 
 # Endpoints da API
 
@@ -231,7 +223,7 @@ async def get_dashboard_data():
             conn.close()
 
     # Buscar saldo real na Binance (Spot + Futures) em thread (não bloqueia event loop)
-    real_patrimony, spot_balance_usdt, futures_balance_usdt, bnb_usd = await asyncio.to_thread(
+    real_patrimony, spot_balances, futures_balances, bnb_usd = await asyncio.to_thread(
         _fetch_dashboard_binance_data
     )
         
@@ -242,9 +234,13 @@ async def get_dashboard_data():
         "wins": wins,
         "losses": losses,
         "active_positions": active_positions,
-        "patrimony": real_patrimony,
-        "spot_balance": round(spot_balance_usdt, 2),
-        "futures_balance": round(futures_balance_usdt, 2),
+        "patrimony": round(spot_balances["total"] + futures_balances["total"], 2),
+        "spot_balance": round(spot_balances["total"], 2),
+        "spot_balance_free": round(spot_balances["free"], 2),
+        "spot_balance_used": round(spot_balances["used"], 2),
+        "futures_balance": round(futures_balances["total"], 2),
+        "futures_balance_free": round(futures_balances["free"], 2),
+        "futures_balance_used": round(futures_balances["used"], 2),
         "bnb_balance": bnb_usd,
         "rankings": {
             "best": [{"symbol": x["symbol"], "pnl": round(x["pnl"], 2)} for x in best_coins],
@@ -348,7 +344,7 @@ async def get_operations(page: int = 1, limit: int = 50):
     print(f"[PERF] NATS KV: {(t_kv - t_db)*1000:.0f}ms ({len(symbols_to_fetch)} symbols: {symbols_to_fetch})")
 
     # Busca tickers + saldos Binance em thread separada (não bloqueia event loop)
-    binance_prices, spot_balance_usdt, futures_balance_usdt = await asyncio.to_thread(
+    binance_prices, spot_balances, futures_balances = await asyncio.to_thread(
         _fetch_all_binance_data, symbols_to_fetch
     )
     current_prices.update(binance_prices)
@@ -412,8 +408,12 @@ async def get_operations(page: int = 1, limit: int = 50):
         "page": page,
         "limit": limit,
         "max_hold_hours": max_hold_hours,
-        "spot_balance": round(spot_balance_usdt, 2),
-        "futures_balance": round(futures_balance_usdt, 2)
+        "spot_balance": round(spot_balances["total"], 2),
+        "spot_balance_free": round(spot_balances["free"], 2),
+        "spot_balance_used": round(spot_balances["used"], 2),
+        "futures_balance": round(futures_balances["total"], 2),
+        "futures_balance_free": round(futures_balances["free"], 2),
+        "futures_balance_used": round(futures_balances["used"], 2)
     }
 
 @app.get("/api/shadow-short")

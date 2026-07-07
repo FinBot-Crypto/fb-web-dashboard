@@ -9,9 +9,13 @@ export default function Dashboard() {
     wins: 0,
     losses: 0,
     active_positions: [],
-    patrimony: 97.38,
+    patrimony: 0,
     spot_balance: 0,
+    spot_balance_free: 0,
+    spot_balance_used: 0,
     futures_balance: 0,
+    futures_balance_free: 0,
+    futures_balance_used: 0,
     bnb_balance: 0,
     rankings: { best: [], worst: [], most_traded: [] },
     curve: []
@@ -73,25 +77,26 @@ export default function Dashboard() {
             </div>
           );
         })()}
+
         {/* Card 1 - Patrimônio */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-accentGreen transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Patrimônio Total</p>
           <p className="text-2xl font-bold text-white mt-2">${data.patrimony}</p>
-          <span className="text-slate-400 text-xs font-medium">Carteira Binance</span>
+          <span className="text-slate-400 text-xs font-medium">Spot + Futures</span>
         </div>
 
         {/* Card 2 - Saldo Spot */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Saldo Spot (USDT)</p>
           <p className="text-2xl font-bold text-blue-400 mt-2">${data.spot_balance}</p>
-          <span className="text-slate-400 text-xs font-medium">Saldo disponível Spot</span>
+          <span className="text-slate-400 text-xs font-medium">Livre: ${data.spot_balance_free} | Em uso: ${data.spot_balance_used}</span>
         </div>
 
         {/* Card 3 - Saldo Futures */}
         <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-purple-500 transition-colors cursor-pointer">
           <p className="text-slate-400 text-sm font-medium">Saldo Futures (USDT)</p>
           <p className="text-2xl font-bold text-purple-400 mt-2">${data.futures_balance}</p>
-          <span className="text-slate-400 text-xs font-medium">Saldo disponível Futures</span>
+          <span className="text-slate-400 text-xs font-medium">Livre: ${data.futures_balance_free} | Em uso: ${data.futures_balance_used}</span>
         </div>
         
         {/* Card 4 - BNB Taxas */}
