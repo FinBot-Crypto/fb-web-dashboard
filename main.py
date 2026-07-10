@@ -40,6 +40,7 @@ def _get_spot_ex():
             'apiKey': os.getenv("BINANCE_API_KEY"),
             'secret': os.getenv("BINANCE_API_SECRET"),
             'enableRateLimit': True,
+            'timeout': 15000,
         })
     return _cached_spot_ex
 
@@ -50,6 +51,7 @@ def _get_futures_ex():
             'apiKey': os.getenv("BINANCE_API_KEY"),
             'secret': os.getenv("BINANCE_API_SECRET"),
             'enableRateLimit': True,
+            'timeout': 15000,
             'options': {'defaultType': 'future'}
         })
     return _cached_futures_ex
