@@ -129,16 +129,18 @@ export default function Shadow() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sltpTab, setSltpTab] = useState('all');
+  const [minModelScore, setMinModelScore] = useState(0.73);
 
   useEffect(() => {
-    fetch('/api/shadow')
+    setLoading(true);
+    fetch(`/api/shadow?min_model_score=${minModelScore}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then(d => { setData(d); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
-  }, []);
+  }, [minModelScore]);
 
   if (loading) return (
     <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -182,29 +184,57 @@ export default function Shadow() {
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <span style={{ fontSize: '28px' }}>⚗️</span>
-          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>
-            Shadow LONG (modelo)
-          </h1>
-          {!noData && (
-            <span style={{
-              background: 'rgba(99,102,241,0.2)',
-              border: '1px solid rgba(99,102,241,0.4)',
-              color: '#a5b4fc',
-              fontSize: '12px',
-              fontWeight: 600,
-              padding: '3px 10px',
-              borderRadius: '20px',
-            }}>
-              {data.total_simulations.toLocaleString()} simulações
-            </span>
-          )}
+      <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '28px' }}>⚗️</span>
+            <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>
+              Shadow LONG (modelo)
+            </h1>
+            {!noData && (
+              <span style={{
+                background: 'rgba(99,102,241,0.2)',
+                border: '1px solid rgba(99,102,241,0.4)',
+                color: '#a5b4fc',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: '20px',
+              }}>
+                {data.total_simulations.toLocaleString()} simulações
+              </span>
+            )}
+          </div>
+          <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+            Laboratório paralelo de estratégias — análise por configuração de SL/TP, Tier, RSI de entrada e horário.
+          </p>
         </div>
-        <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
-          Laboratório paralelo de estratégias — análise por configuração de SL/TP, Tier, RSI de entrada e horário.
-        </p>
+
+        {/* Score Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15,23,42,0.4)', border: '1px solid rgba(71,85,105,0.4)', padding: '6px 12px', borderRadius: '10px' }}>
+          <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 500 }}>Score Mínimo:</span>
+          <select 
+            value={minModelScore} 
+            onChange={(e) => setMinModelScore(parseFloat(e.target.value))}
+            style={{
+              background: '#0f172a',
+              color: '#f1f5f9',
+              border: '1px solid rgba(71,85,105,0.6)',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '13px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="0.0">Todos (0.00)</option>
+            <option value="0.50">0.50</option>
+            <option value="0.60">0.60</option>
+            <option value="0.65">0.65</option>
+            <option value="0.70">0.70</option>
+            <option value="0.73">0.73 (Prod)</option>
+          </select>
+        </div>
       </div>
 
       {noData ? (
