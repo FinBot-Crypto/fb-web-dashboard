@@ -679,7 +679,7 @@ async def get_shadow_metrics():
         cur = conn.cursor()
 
         cur.execute("""SELECT symbol, tier, rsi_entry, hour_entry, entry_price, sl, tp, pnl, exit_reason, minutes, model_score, btc_trend
-                       FROM shadow_long_scan WHERE model_score >= 0.65 ORDER BY entry_ts DESC""")
+                       FROM shadow_long_scan WHERE model_score >= 0.73 ORDER BY entry_ts DESC""")
         rows = cur.fetchall()
         cur.close()
 

@@ -104,7 +104,7 @@ export default function ShortShadow() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('/api/shadow-short?min_model_score=0.85')
+    fetch('/api/shadow-short?min_model_score=0.70')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -116,7 +116,7 @@ export default function ShortShadow() {
   useEffect(() => {
     if (!data) return;
     const interval = setInterval(() => {
-      fetch('/api/shadow-short?min_model_score=0.85')
+      fetch('/api/shadow-short?min_model_score=0.70')
         .then(res => res.json())
         .then(d => setData(d))
         .catch(() => {});
