@@ -129,7 +129,7 @@ export default function Shadow() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sltpTab, setSltpTab] = useState('all');
-  const [minModelScore, setMinModelScore] = useState(0.73);
+  const [minModelScore, setMinModelScore] = useState(0.55);
 
   useEffect(() => {
     setLoading(true);
