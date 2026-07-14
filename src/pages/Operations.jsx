@@ -172,7 +172,14 @@ function TradeChart({ order, onClose }) {
 }
 
 export default function Operations() {
-  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12, spot_balance: 0, spot_balance_free: 0, spot_balance_used: 0, futures_balance: 0, futures_balance_free: 0, futures_balance_used: 0 });
+  const [data, setData] = useState({ open: [], closed: [], total_open: 0, total_closed: 0, total_pnl: 0, max_hold_hours: 12, spot_balance: 0, spot_balance_free: 0, spot_balance_used: 0, futures_balance: 0, futures_balance_free: 0, futures_balance_used: 0, tier_by_day: {} });
+
+  const TIER_STYLES = {
+    'Major':           { bg: 'rgba(234,179,8,0.15)',   border: '#ca8a04', text: '#fde047', icon: '💎' },
+    'Strong Alt':      { bg: 'rgba(99,102,241,0.15)',  border: '#6366f1', text: '#a5b4fc', icon: '⚡' },
+    'High Volatility': { bg: 'rgba(239,68,68,0.15)',   border: '#ef4444', text: '#fca5a5', icon: '🔥' },
+  };
+  const tierStyle = (t) => TIER_STYLES[t] || { bg: 'rgba(100,116,139,0.15)', border: '#475569', text: '#94a3b8', icon: '❓' };
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [page, setPage] = useState(1);
@@ -369,6 +376,14 @@ export default function Operations() {
               ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-semibold border border-red-500/30">SHORT</span>
               : <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/30">LONG</span>;
 
+            const ts = tierStyle(order.tier);
+            const tierTag = order.tier ? (
+              <span style={{ background: ts.bg, border: `1px solid ${ts.border}`, color: ts.text }}
+                className="text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                {ts.icon} {order.tier}
+              </span>
+            ) : null;
+
             return (
               <div key={order.id}
                 onClick={() => setSelectedOrder(order)}
@@ -376,10 +391,11 @@ export default function Operations() {
               >
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-bold text-lg">{order.symbol}</span>
                       {marketTag}
                       {directionTag}
+                      {tierTag}
                       {wlInfo}
                     </div>
                     <div className="flex items-center gap-2">
@@ -449,7 +465,7 @@ export default function Operations() {
             return (
               <div key={dayKey} className="border-l-2 border-slate-700 pl-4 py-1">
                 {/* Cabeçalho do Dia */}
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-3 bg-slate-900/60 p-3 rounded-lg border border-slate-800">
                   <div className="flex items-center gap-3">
                     <span className="text-lg font-bold text-white">{dayKey}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
@@ -460,6 +476,29 @@ export default function Operations() {
                     Resultado: {isDayProfit ? '+' : ''}${group.pnl.toFixed(4)} USDT
                   </span>
                 </div>
+
+                {/* Breakdown por Tier */}
+                {data.tier_by_day && data.tier_by_day[dayKey] && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {data.tier_by_day[dayKey].map(td => {
+                      const ts = tierStyle(td.tier);
+                      const isPnlPos = td.pnl_money >= 0;
+                      return (
+                        <div key={td.tier}
+                          style={{ background: ts.bg, border: `1px solid ${ts.border}` }}
+                          className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+                        >
+                          <span style={{ color: ts.text }} className="font-bold">{ts.icon} {td.tier}</span>
+                          <span className="text-green-400 font-semibold">{td.wins}W</span>
+                          <span className="text-red-400 font-semibold">{td.losses}L</span>
+                          <span style={{ color: isPnlPos ? '#10b981' : '#ef4444' }} className="font-bold">
+                            {isPnlPos ? '+' : ''}{td.pnl_money.toFixed(4)} USDT
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Cards do Dia */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -478,13 +517,22 @@ export default function Operations() {
                       ? <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold border border-red-500/20">SHORT</span>
                       : <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/20">LONG</span>;
 
+                    const ts2 = tierStyle(order.tier);
+                    const closedTierTag = order.tier ? (
+                      <span style={{ background: ts2.bg, border: `1px solid ${ts2.border}`, color: ts2.text }}
+                        className="text-[9px] px-1.5 py-0.5 rounded font-semibold">
+                        {ts2.icon} {order.tier}
+                      </span>
+                    ) : null;
+
                     return (
                       <div key={order.id} className={`bg-slate-800 p-5 rounded-xl border ${isWin ? 'border-accentGreen/30' : 'border-accentRed/30'}`}>
                         <div className="flex justify-between items-center mb-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-white font-bold text-lg">{order.symbol}</span>
                             {marketTag}
                             {directionTag}
+                            {closedTierTag}
                           </div>
                           <span className={`text-xs px-2 py-1 rounded-full uppercase ${isWin ? 'bg-accentGreen/20 text-accentGreen' : 'bg-accentRed/20 text-accentRed'}`}>
                             {badgeText}

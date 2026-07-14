@@ -285,7 +285,7 @@ async def get_operations(page: int = 1, limit: int = 50):
                    exit_reason, pnl_pct, 
                    created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
                    updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo', 
-                   is_futures, leverage, score, rsi, direction
+                   is_futures, leverage, score, rsi, direction, tier
             FROM trade_log 
             ORDER BY created_at DESC LIMIT %s OFFSET %s;
         """, (limit, offset))
@@ -307,6 +307,36 @@ async def get_operations(page: int = 1, limit: int = 50):
             FROM trade_log WHERE status = 'CLOSED' AND entry_price IS NOT NULL AND quantity IS NOT NULL
         """)
         total_pnl = round(cur.fetchone()[0], 2)
+
+        # PnL por tier por dia (para breakdown no histórico)
+        cur.execute("""
+            SELECT 
+                tier,
+                date(updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo') as day,
+                COUNT(*) as total,
+                SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN pnl_pct <= 0 THEN 1 ELSE 0 END) as losses,
+                COALESCE(SUM((pnl_pct/100) * entry_price * quantity), 0) as pnl_money
+            FROM trade_log 
+            WHERE status = 'CLOSED' AND entry_price IS NOT NULL AND quantity IS NOT NULL
+            GROUP BY tier, day
+            ORDER BY day DESC, tier
+        """)
+        tier_day_rows = cur.fetchall()
+        # Build dict: {"13/07": [{tier, wins, losses, pnl_money}]}
+        tier_by_day = {}
+        for r in tier_day_rows:
+            tier_name = r[0] or "Desconhecido"
+            day_str = r[1].strftime("%d/%m") if r[1] else ""
+            if day_str not in tier_by_day:
+                tier_by_day[day_str] = []
+            tier_by_day[day_str].append({
+                "tier": tier_name,
+                "total": r[2],
+                "wins": r[3] or 0,
+                "losses": r[4] or 0,
+                "pnl_money": round(float(r[5]), 4)
+            })
         
         cur.close()
     except Exception as e:
@@ -383,7 +413,8 @@ async def get_operations(page: int = 1, limit: int = 50):
             "leverage": row[11] if len(row) > 11 else 1,
             "score": row[12] if len(row) > 12 else None,
             "rsi": row[13] if len(row) > 13 else None,
-            "direction": row[14] if len(row) > 14 else "LONG"
+            "direction": row[14] if len(row) > 14 else "LONG",
+            "tier": row[15] if len(row) > 15 else None
         }
         if row[2] == "OPEN":
             # Adicionar SL/TP do KV
@@ -423,6 +454,7 @@ async def get_operations(page: int = 1, limit: int = 50):
         "page": page,
         "limit": limit,
         "max_hold_hours": max_hold_hours,
+        "tier_by_day": tier_by_day,
         "spot_balance": round(spot_balances["total"], 2),
         "spot_balance_free": round(spot_balances["free"], 2),
         "spot_balance_used": round(spot_balances["used"], 2),
@@ -1160,7 +1192,11 @@ async def get_leme_history():
     try:
         conn = get_db_conn()
         cur = conn.cursor()
-        cur.execute("SELECT id, group_name, action, reason, details, created_at FROM leme_decisions ORDER BY created_at DESC LIMIT 50")
+        cur.execute("""
+            SELECT id, group_name, action, reason, details,
+                   created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo' as created_at
+            FROM leme_decisions ORDER BY created_at DESC LIMIT 50
+        """)
         rows = cur.fetchall()
         cur.close()
         out = []
