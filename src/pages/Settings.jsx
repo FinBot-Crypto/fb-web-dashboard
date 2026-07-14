@@ -462,6 +462,44 @@ export default function Settings() {
                     />
                   </div>
                 </div>
+
+                {/* Long Allowed Regimes Selection */}
+                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                  <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {['bull', 'bear', 'neutral'].map(reg => {
+                      const currentRegimes = settings[`long_${tier}_allowed_regimes`] ?? ['bull', 'neutral'];
+                      const active = currentRegimes.includes(reg);
+                      return (
+                        <button
+                          key={reg}
+                          type="button"
+                          onClick={() => {
+                            const next = active 
+                              ? currentRegimes.filter(r => r !== reg)
+                              : [...currentRegimes, reg];
+                            handleChange(`long_${tier}_allowed_regimes`, next);
+                          }}
+                          style={{
+                            flex: 1,
+                            background: active ? 'rgba(99,102,241,0.2)' : 'transparent',
+                            color: active ? '#a5b4fc' : '#64748b',
+                            border: `1px solid ${active ? 'rgba(99,102,241,0.5)' : 'rgba(71,85,105,0.3)'}`,
+                            borderRadius: '6px',
+                            padding: '6px 4px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {reg === 'bull' ? '🐂 Bull' : reg === 'bear' ? '🐻 Bear' : '➖ Lateral'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {/* SHORT CONFIG */}
@@ -527,6 +565,44 @@ export default function Settings() {
                       onChange={(e) => handleChange(`short_${tier}_tp`, parseFloat(e.target.value))}
                       style={inputStyle}
                     />
+                  </div>
+                </div>
+
+                {/* Short Allowed Regimes Selection */}
+                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                  <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {['bull', 'bear', 'neutral'].map(reg => {
+                      const currentRegimes = settings[`short_${tier}_allowed_regimes`] ?? ['bear', 'neutral'];
+                      const active = currentRegimes.includes(reg);
+                      return (
+                        <button
+                          key={reg}
+                          type="button"
+                          onClick={() => {
+                            const next = active 
+                              ? currentRegimes.filter(r => r !== reg)
+                              : [...currentRegimes, reg];
+                            handleChange(`short_${tier}_allowed_regimes`, next);
+                          }}
+                          style={{
+                            flex: 1,
+                            background: active ? 'rgba(239,68,68,0.15)' : 'transparent',
+                            color: active ? '#fca5a5' : '#64748b',
+                            border: `1px solid ${active ? 'rgba(239,68,68,0.4)' : 'rgba(71,85,105,0.3)'}`,
+                            borderRadius: '6px',
+                            padding: '6px 4px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {reg === 'bull' ? '🐂 Bull' : reg === 'bear' ? '🐻 Bear' : '➖ Lateral'}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

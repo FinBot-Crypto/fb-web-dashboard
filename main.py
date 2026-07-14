@@ -1086,7 +1086,13 @@ def init_db_settings():
         "leme_min_win_rate": 50.0,
         "leme_cooldown_hours": 24,
         "leme_shadow_min_trades": 5,
-        "leme_shadow_min_winrate": 60.0
+        "leme_shadow_min_winrate": 60.0,
+        "long_Major_allowed_regimes": ["bull", "neutral"],
+        "long_Strong Alt_allowed_regimes": ["bull", "neutral"],
+        "long_High Volatility_allowed_regimes": ["bull", "neutral"],
+        "short_Major_allowed_regimes": ["bear", "neutral"],
+        "short_Strong Alt_allowed_regimes": ["bear", "neutral"],
+        "short_High Volatility_allowed_regimes": ["bear", "neutral"]
     }
     for k, v in default_settings.items():
         cur.execute("""
@@ -1146,6 +1152,12 @@ async def update_bot_settings(payload: dict):
                 val = float(v)
                 if val <= 0 or val > 100.0:
                     raise HTTPException(status_code=400, detail=f"RSI para {k} deve ser entre 1 e 100")
+            elif k.endswith('_allowed_regimes'):
+                if not isinstance(v, list):
+                    raise HTTPException(status_code=400, detail=f"Regimes para {k} deve ser uma lista/array")
+                for r in v:
+                    if r not in ["bull", "bear", "neutral"]:
+                        raise HTTPException(status_code=400, detail=f"Regime inválido: {r}")
             elif k == "leme_active":
                 if not isinstance(v, bool):
                     raise HTTPException(status_code=400, detail="leme_active deve ser booleano")

@@ -126,11 +126,20 @@ function SLTPRow({ rank, config, avg_pnl, win_rate, count }) {
 
 export default function Shadow() {
   const [data, setData] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sltpTab, setSltpTab] = useState('all');
   const [minModelScore, setMinModelScore] = useState(0.55);
   const [activeTierTab, setActiveTierTab] = useState('All');
+
+  useEffect(() => {
+    // Carregar configurações primeiro
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(setSettings)
+      .catch(err => console.error("Erro ao carregar settings no Shadow:", err));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -267,6 +276,46 @@ export default function Shadow() {
           </button>
         ))}
       </div>
+
+      {/* Regimes Status Banner */}
+      {settings && activeTierTab !== 'All' && (
+        <div style={{
+          background: 'rgba(15,23,42,0.4)',
+          border: '1px solid rgba(71,85,105,0.2)',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 500 }}>
+            Configuração de Regimes para <strong>LONG {activeTierTab}</strong>:
+          </span>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {['bull', 'bear', 'neutral'].map(r => {
+              const allowed = (settings[`long_${activeTierTab}_allowed_regimes`] ?? ['bull', 'neutral']).includes(r);
+              return (
+                <span 
+                  key={r}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: allowed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                    color: allowed ? '#86efac' : '#fca5a5',
+                    border: `1px solid ${allowed ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
+                  }}
+                >
+                  {r === 'bull' ? '🐂 BULL' : r === 'bear' ? '🐻 BEAR' : '➖ LATERAL'} {allowed ? '✅' : '❌'}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {noData ? (
         <div style={{ ...sectionStyle, textAlign: 'center', padding: '48px' }}>
