@@ -440,6 +440,12 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
     combo_agg = {}
     tier_agg = {}
     trend_agg = {}
+    window_agg = {
+        "Madrugada (0–6h)": {"window": "Madrugada (0–6h)", "pnls": []},
+        "Manhã (6–12h)": {"window": "Manhã (6–12h)", "pnls": []},
+        "Tarde (12–18h)": {"window": "Tarde (12–18h)", "pnls": []},
+        "Noite (18–24h)": {"window": "Noite (18–24h)", "pnls": []}
+    }
     score_details = []
 
     for row in rows:
@@ -473,6 +479,15 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
 
         if hour_e is not None:
             hour_agg[hour_e]["pnls"].append(pnl)
+            if 0 <= hour_e < 6:
+                wl = "Madrugada (0–6h)"
+            elif 6 <= hour_e < 12:
+                wl = "Manhã (6–12h)"
+            elif 12 <= hour_e < 18:
+                wl = "Tarde (12–18h)"
+            else:
+                wl = "Noite (18–24h)"
+            window_agg[wl]["pnls"].append(pnl)
 
         if symbol not in symbol_agg:
             symbol_agg[symbol] = {"pnls": [], "count": 0}
@@ -543,6 +558,27 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
         avg = round(sum(ps) / len(ps), 3) if ps else None
         ranking_hour.append({"hour": h, "avg_pnl": avg, "count": len(ps)})
 
+    ranking_hour_windows = []
+    for wl in ["Madrugada (0–6h)", "Manhã (6–12h)", "Tarde (12–18h)", "Noite (18–24h)"]:
+        ps = window_agg[wl]["pnls"]
+        n = len(ps)
+        if n > 0:
+            avg = sum(ps) / n
+            wins = sum(1 for p in ps if p > 0)
+            ranking_hour_windows.append({
+                "window": wl,
+                "avg_pnl": round(avg, 3),
+                "win_rate": round(wins / n * 100, 1),
+                "count": n
+            })
+        else:
+            ranking_hour_windows.append({
+                "window": wl,
+                "avg_pnl": 0,
+                "win_rate": 0,
+                "count": 0
+            })
+
     ranking_symbol = fmt_agg(symbol_agg, "symbol")
     ranking_tier = fmt_agg(tier_agg, "tier")
     ranking_trend = fmt_agg(trend_agg, "trend")
@@ -577,6 +613,7 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
         "ranking_sltp": ranking_sltp,
         "ranking_rsi": ranking_rsi,
         "ranking_hour": ranking_hour,
+        "ranking_hour_windows": ranking_hour_windows,
         "ranking_symbol": ranking_symbol,
         "ranking_tier": ranking_tier,
         "ranking_trend": ranking_trend,
@@ -941,6 +978,128 @@ async def get_insights(
     except Exception as e:
         import traceback
         print(f"Erro ao buscar insights: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+def init_db_settings():
+    conn = get_db_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key VARCHAR(255) PRIMARY KEY,
+            value JSONB NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    default_settings = {
+        "long_Major_min_score": 0.70,
+        "long_Major_max_rsi": 30.0,
+        "long_Major_sl": 3.0,
+        "long_Major_tp": 3.0,
+        "long_Major_allowed": True,
+        
+        "long_Strong Alt_min_score": 0.73,
+        "long_Strong Alt_max_rsi": 30.0,
+        "long_Strong Alt_sl": 3.0,
+        "long_Strong Alt_tp": 3.0,
+        "long_Strong Alt_allowed": True,
+        
+        "long_High Volatility_min_score": 0.75,
+        "long_High Volatility_max_rsi": 25.0,
+        "long_High Volatility_sl": 5.0,
+        "long_High Volatility_tp": 5.0,
+        "long_High Volatility_allowed": True,
+        
+        "short_Major_min_score": 0.70,
+        "short_Major_min_rsi": 70.0,
+        "short_Major_sl": 3.0,
+        "short_Major_tp": 2.0,
+        "short_Major_allowed": True,
+        
+        "short_Strong Alt_min_score": 0.75,
+        "short_Strong Alt_min_rsi": 70.0,
+        "short_Strong Alt_sl": 5.0,
+        "short_Strong Alt_tp": 3.0,
+        "short_Strong Alt_allowed": True,
+        
+        "short_High Volatility_min_score": 0.85,
+        "short_High Volatility_min_rsi": 75.0,
+        "short_High Volatility_sl": 6.0,
+        "short_High Volatility_tp": 3.0,
+        "short_High Volatility_allowed": True
+    }
+    for k, v in default_settings.items():
+        cur.execute("""
+            INSERT INTO bot_settings (key, value)
+            VALUES (%s, %s)
+            ON CONFLICT (key) DO NOTHING
+        """, (k, json.dumps(v)))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+try:
+    init_db_settings()
+except Exception as e:
+    print(f"Erro ao inicializar bot_settings: {e}")
+
+@app.get("/api/settings")
+async def get_bot_settings():
+    conn = None
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT key, value FROM bot_settings")
+        rows = cur.fetchall()
+        cur.close()
+        out = {}
+        for r in rows:
+            val = r[1]
+            if isinstance(val, str):
+                try:
+                    val = json.loads(val)
+                except:
+                    pass
+            out[r[0]] = val
+        return out
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+@app.post("/api/settings")
+async def update_bot_settings(payload: dict):
+    conn = None
+    try:
+        # Validações rígidas de segurança para evitar parâmetros corrompidos
+        for k, v in payload.items():
+            if k.endswith('_min_score'):
+                val = float(v)
+                if val <= 0 or val >= 1.0:
+                    raise HTTPException(status_code=400, detail=f"Score mínimo para {k} deve ser decimal entre 0.0 e 1.0")
+            elif k.endswith('_sl') or k.endswith('_tp'):
+                val = float(v)
+                if val <= 0 or val > 100.0:
+                    raise HTTPException(status_code=400, detail=f"Stop Loss / Take Profit para {k} deve ser entre 0.1% e 100%")
+            elif k.endswith('_max_rsi') or k.endswith('_min_rsi'):
+                val = float(v)
+                if val <= 0 or val > 100.0:
+                    raise HTTPException(status_code=400, detail=f"RSI para {k} deve ser entre 1 e 100")
+
+        conn = get_db_conn()
+        cur = conn.cursor()
+        for k, v in payload.items():
+            cur.execute("""
+                INSERT INTO bot_settings (key, value, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (key) 
+                DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            """, (k, json.dumps(v)))
+        conn.commit()
+        cur.close()
+        return {"status": "success", "message": "Configurações salvas."}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
