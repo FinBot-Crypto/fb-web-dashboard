@@ -36,24 +36,34 @@ _cached_futures_ex = None
 def _get_spot_ex():
     global _cached_spot_ex
     if _cached_spot_ex is None:
-        _cached_spot_ex = ccxt.binance({
-            'apiKey': os.getenv("BINANCE_API_KEY"),
-            'secret': os.getenv("BINANCE_API_SECRET"),
+        api_key = os.getenv("BINANCE_API_KEY")
+        secret = os.getenv("BINANCE_API_SECRET")
+        config = {
             'enableRateLimit': True,
             'timeout': 15000,
-        })
+        }
+        if api_key and api_key not in ("your_api_key", ""):
+            config['apiKey'] = api_key
+        if secret and secret not in ("your_api_secret", ""):
+            config['secret'] = secret
+        _cached_spot_ex = ccxt.binance(config)
     return _cached_spot_ex
 
 def _get_futures_ex():
     global _cached_futures_ex
     if _cached_futures_ex is None:
-        _cached_futures_ex = ccxt.binance({
-            'apiKey': os.getenv("BINANCE_API_KEY"),
-            'secret': os.getenv("BINANCE_API_SECRET"),
+        api_key = os.getenv("BINANCE_API_KEY")
+        secret = os.getenv("BINANCE_API_SECRET")
+        config = {
             'enableRateLimit': True,
             'timeout': 15000,
             'options': {'defaultType': 'future'}
-        })
+        }
+        if api_key and api_key not in ("your_api_key", ""):
+            config['apiKey'] = api_key
+        if secret and secret not in ("your_api_secret", ""):
+            config['secret'] = secret
+        _cached_futures_ex = ccxt.binance(config)
     return _cached_futures_ex
 
 def _get_binance_balances(spot_ex, futures_ex):
@@ -386,7 +396,10 @@ async def get_operations(page: int = 1, limit: int = 50):
             # Fallback para o valor retornado do banco caso não exista no KV
             order["score"] = kv_info.get("score") if kv_info.get("score") is not None else order.get("score")
             order["rsi"] = kv_info.get("rsi") if kv_info.get("rsi") is not None else order.get("rsi")
-            order["current_price"] = current_prices.get(row[1])
+            price = current_prices.get(row[1])
+            if price is None and "/" not in row[1]:
+                price = current_prices.get(row[1] + "/USDT")
+            order["current_price"] = price
             # W/L histórico
             wl = coin_wl.get(row[1], {})
             order["coin_wins"] = wl.get("wins", 0)
