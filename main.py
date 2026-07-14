@@ -989,6 +989,16 @@ def init_db_settings():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS leme_decisions (
+            id SERIAL PRIMARY KEY,
+            group_name VARCHAR(50) NOT NULL,
+            action VARCHAR(20) NOT NULL,
+            reason TEXT NOT NULL,
+            details JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
     default_settings = {
         "long_Major_min_score": 0.70,
         "long_Major_max_rsi": 30.0,
@@ -1024,7 +1034,14 @@ def init_db_settings():
         "short_High Volatility_min_rsi": 75.0,
         "short_High Volatility_sl": 6.0,
         "short_High Volatility_tp": 3.0,
-        "short_High Volatility_allowed": True
+        "short_High Volatility_allowed": True,
+
+        "leme_active": True,
+        "leme_max_consecutive_sl": 3,
+        "leme_min_win_rate": 50.0,
+        "leme_cooldown_hours": 24,
+        "leme_shadow_min_trades": 5,
+        "leme_shadow_min_winrate": 60.0
     }
     for k, v in default_settings.items():
         cur.execute("""
@@ -1084,6 +1101,25 @@ async def update_bot_settings(payload: dict):
                 val = float(v)
                 if val <= 0 or val > 100.0:
                     raise HTTPException(status_code=400, detail=f"RSI para {k} deve ser entre 1 e 100")
+            elif k == "leme_active":
+                if not isinstance(v, bool):
+                    raise HTTPException(status_code=400, detail="leme_active deve ser booleano")
+            elif k == "leme_max_consecutive_sl":
+                val = int(v)
+                if val <= 0 or val > 20:
+                    raise HTTPException(status_code=400, detail="leme_max_consecutive_sl deve ser entre 1 e 20")
+            elif k in ["leme_min_win_rate", "leme_shadow_min_winrate"]:
+                val = float(v)
+                if val < 0 or val > 100.0:
+                    raise HTTPException(status_code=400, detail=f"{k} deve ser entre 0% e 100%")
+            elif k == "leme_cooldown_hours":
+                val = int(v)
+                if val <= 0 or val > 720:
+                    raise HTTPException(status_code=400, detail="leme_cooldown_hours deve ser entre 1 e 720 horas")
+            elif k == "leme_shadow_min_trades":
+                val = int(v)
+                if val <= 0 or val > 50:
+                    raise HTTPException(status_code=400, detail="leme_shadow_min_trades deve ser entre 1 e 50")
 
         conn = get_db_conn()
         cur = conn.cursor()
@@ -1099,6 +1135,32 @@ async def update_bot_settings(payload: dict):
         return {"status": "success", "message": "Configurações salvas."}
     except HTTPException as he:
         raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+@app.get("/api/leme/history")
+async def get_leme_history():
+    conn = None
+    try:
+        conn = get_db_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT id, group_name, action, reason, details, created_at FROM leme_decisions ORDER BY created_at DESC LIMIT 50")
+        rows = cur.fetchall()
+        cur.close()
+        out = []
+        for r in rows:
+            out.append({
+                "id": r[0],
+                "group_name": r[1],
+                "action": r[2],
+                "reason": r[3],
+                "details": r[4],
+                "created_at": r[5].isoformat() if r[5] else None
+            })
+        return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
