@@ -419,6 +419,171 @@ async def get_operations(page: int = 1, limit: int = 50):
         "bnb_balance": round(spot_balances["bnb_usd"], 2)
     }
 
+def aggregate_shadow_simulations(rows, direction="LONG"):
+    if not rows:
+        return {
+            "total_simulations": 0,
+            "ranking_sltp": [],
+            "ranking_rsi": [],
+            "ranking_hour": [],
+            "ranking_symbol": [],
+            "ranking_tier": [],
+            "ranking_trend": [],
+            "best_combo": None,
+            "best_scores": []
+        }
+
+    sltp_agg = {}
+    rsi_agg = {}
+    hour_agg = {h: {"pnls": []} for h in range(24)}
+    symbol_agg = {}
+    combo_agg = {}
+    tier_agg = {}
+    trend_agg = {}
+    score_details = []
+
+    for row in rows:
+        symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms, bt = row
+        
+        tier = tier or "Desconhecido"
+        hour_e = int(hour_e) if hour_e is not None else None
+        rsi_e = float(rsi_e) if rsi_e else None
+        pnl = float(pnl) if pnl else 0
+        model_score = float(ms) if ms is not None else None
+        btc_trend = bt or "neutral"
+        
+        sltp_key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
+        if sltp_key not in sltp_agg:
+            sltp_agg[sltp_key] = {"config": sltp_key, "sl": sl, "tp": tp, "pnls": []}
+        sltp_agg[sltp_key]["pnls"].append(pnl)
+
+        if rsi_e is not None:
+            if direction == "SHORT":
+                if rsi_e >= 75: rl = ">=75"
+                elif rsi_e >= 70: rl = "70-75"
+                else: rl = "65-70"
+            else:
+                if rsi_e < 25: rl = "<25"
+                elif rsi_e < 30: rl = "25-30"
+                elif rsi_e < 35: rl = "30-35"
+                else: rl = "35+"
+            if rl not in rsi_agg:
+                rsi_agg[rl] = {"pnls": []}
+            rsi_agg[rl]["pnls"].append(pnl)
+
+        if hour_e is not None:
+            hour_agg[hour_e]["pnls"].append(pnl)
+
+        if symbol not in symbol_agg:
+            symbol_agg[symbol] = {"pnls": [], "count": 0}
+        symbol_agg[symbol]["pnls"].append(pnl)
+        symbol_agg[symbol]["count"] += 1
+
+        if rsi_e is not None and hour_e is not None:
+            win = "Madrugada" if 0 <= hour_e < 6 else "Manha" if 6 <= hour_e < 12 else "Tarde" if 12 <= hour_e < 18 else "Noite"
+            combo_key = f"RSI {rl} | {win}"
+            if combo_key not in combo_agg:
+                combo_agg[combo_key] = {"label": combo_key, "pnls": []}
+            combo_agg[combo_key]["pnls"].append(pnl)
+
+        if tier not in tier_agg:
+            tier_agg[tier] = {"tier": tier, "pnls": []}
+        tier_agg[tier]["pnls"].append(pnl)
+
+        if btc_trend not in trend_agg:
+            trend_agg[btc_trend] = {"trend": btc_trend, "pnls": []}
+        trend_agg[btc_trend]["pnls"].append(pnl)
+
+        if model_score is not None:
+            score_details.append({
+                "symbol": symbol,
+                "score": model_score,
+                "rsi": rsi_e,
+                "hour": hour_e,
+                "pnl": pnl,
+                "sl": sl,
+                "tp": tp,
+                "reason": reason
+            })
+
+    def fmt_agg(agg_dict, label_key, limit=15):
+        out = []
+        for v in agg_dict.values():
+            pnls = v["pnls"]
+            n = len(pnls)
+            if n < 5:
+                continue
+            avg = sum(pnls) / n
+            wins = sum(1 for p in pnls if p > 0)
+            item = {"avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n}
+            if label_key in v:
+                item[label_key] = v[label_key]
+            out.append(item)
+        out.sort(key=lambda x: x["avg_pnl"], reverse=True)
+        return out[:limit]
+
+    ranking_sltp = fmt_agg(sltp_agg, "config")
+
+    ranking_rsi = []
+    rsi_keys = [">=75", "70-75", "65-70"] if direction == "SHORT" else ["<25", "25-30", "30-35", "35+"]
+    for key in rsi_keys:
+        if key in rsi_agg:
+            pnls = rsi_agg[key]["pnls"]
+            n = len(pnls)
+            if n > 0:
+                avg = sum(pnls) / n
+                wins = sum(1 for p in pnls if p > 0)
+                ranking_rsi.append({"range": key, "avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n})
+        else:
+            ranking_rsi.append({"range": key, "avg_pnl": 0, "win_rate": 0, "count": 0})
+
+    ranking_hour = []
+    for h in range(24):
+        ps = hour_agg[h]["pnls"]
+        avg = round(sum(ps) / len(ps), 3) if ps else None
+        ranking_hour.append({"hour": h, "avg_pnl": avg, "count": len(ps)})
+
+    ranking_symbol = fmt_agg(symbol_agg, "symbol")
+    ranking_tier = fmt_agg(tier_agg, "tier")
+    ranking_trend = fmt_agg(trend_agg, "trend")
+
+    best_combo = None
+    candidates = []
+    for v in combo_agg.values():
+        pnls = v["pnls"]
+        n = len(pnls)
+        if n < 3:
+            continue
+        avg = sum(pnls) / n
+        wins = sum(1 for p in pnls if p > 0)
+        candidates.append({"label": v["label"], "avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n})
+    if candidates:
+        candidates.sort(key=lambda x: x["avg_pnl"], reverse=True)
+        best_combo = candidates[0]
+
+    score_details.sort(key=lambda x: x["score"], reverse=True)
+    seen = set()
+    best_scores = []
+    for sd in score_details:
+        key = (sd["symbol"], round(sd["score"], 4))
+        if key not in seen:
+            seen.add(key)
+            best_scores.append(sd)
+            if len(best_scores) >= 10:
+                break
+
+    return {
+        "total_simulations": len(rows),
+        "ranking_sltp": ranking_sltp,
+        "ranking_rsi": ranking_rsi,
+        "ranking_hour": ranking_hour,
+        "ranking_symbol": ranking_symbol,
+        "ranking_tier": ranking_tier,
+        "ranking_trend": ranking_trend,
+        "best_combo": best_combo,
+        "best_scores": best_scores
+    }
+
 @app.get("/api/shadow-short")
 async def get_shadow_short_metrics(min_model_score: float = 0):
     conn = None
@@ -443,125 +608,34 @@ async def get_shadow_short_metrics(min_model_score: float = 0):
         cur.close()
 
         if not rows:
-            return {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None}
+            return {
+                "total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None, "best_scores": [],
+                "tiers": {
+                    "Major": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []},
+                    "Strong Alt": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []},
+                    "High Volatility": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []}
+                }
+            }
 
-        sltp_agg = {}
-        rsi_agg = {}
-        hour_agg = {h: {"pnls": []} for h in range(24)}
-        tier_agg = {}
-        symbol_agg = {}
-        combo_agg = {}
-        trend_agg = {}
-
+        # Group by tier
+        rows_by_tier = {
+            "Major": [],
+            "Strong Alt": [],
+            "High Volatility": []
+        }
         for row in rows:
-            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms, bt = row
-            tier = tier or "Desconhecido"
-            hour_e = int(hour_e) if hour_e is not None else None
-            rsi_e = float(rsi_e) if rsi_e else None
-            pnl = float(pnl) if pnl else 0
-            model_score = float(ms) if ms is not None else None
-            btc_trend = bt or "neutral"
+            t = row[1] or "Desconhecido"
+            if t in rows_by_tier:
+                rows_by_tier[t].append(row)
 
-            sltp_key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
-            if sltp_key not in sltp_agg:
-                sltp_agg[sltp_key] = {"config": sltp_key, "sl": sl, "tp": tp, "pnls": []}
-            sltp_agg[sltp_key]["pnls"].append(pnl)
-
-            if rsi_e is not None:
-                rsi_label = f"{int(rsi_e - (rsi_e % 5))}-{int(rsi_e - (rsi_e % 5)) + 5}"
-                if rsi_e >= 75:
-                    rsi_label = ">=75"
-                elif rsi_e >= 70:
-                    rsi_label = "70-75"
-                elif rsi_e >= 65:
-                    rsi_label = "65-70"
-                if rsi_label not in rsi_agg:
-                    rsi_agg[rsi_label] = {"pnls": []}
-                rsi_agg[rsi_label]["pnls"].append(pnl)
-
-            if hour_e is not None:
-                hour_agg[hour_e]["pnls"].append(pnl)
-
-            if tier not in tier_agg:
-                tier_agg[tier] = {"pnls": []}
-            tier_agg[tier]["pnls"].append(pnl)
-
-            if symbol not in symbol_agg:
-                symbol_agg[symbol] = {"pnls": [], "count": 0}
-            symbol_agg[symbol]["pnls"].append(pnl)
-            symbol_agg[symbol]["count"] += 1
-
-            if btc_trend not in trend_agg:
-                trend_agg[btc_trend] = {"pnls": []}
-            trend_agg[btc_trend]["pnls"].append(pnl)
-
-            if rsi_e is not None and hour_e is not None:
-                win = "Madrugada" if 0 <= hour_e < 6 else "Manha" if 6 <= hour_e < 12 else "Tarde" if 12 <= hour_e < 18 else "Noite"
-                combo_key = f"{tier} | RSI {rsi_label} | {win}"
-                if combo_key not in combo_agg:
-                    combo_agg[combo_key] = {"label": combo_key, "pnls": []}
-                combo_agg[combo_key]["pnls"].append(pnl)
-
-        def fmt_agg(agg_dict, label_key, limit=15):
-            out = []
-            for v in agg_dict.values():
-                pnls = v["pnls"]
-                n = len(pnls)
-                if n < 5:
-                    continue
-                avg = sum(pnls) / n
-                wins = sum(1 for p in pnls if p > 0)
-                item = {"avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n}
-                if label_key in v:
-                    item[label_key] = v[label_key]
-                out.append(item)
-            out.sort(key=lambda x: x["avg_pnl"], reverse=True)
-            return out[:limit]
-
-        ranking_sltp = fmt_agg(sltp_agg, "config")
-
-        ranking_rsi = []
-        for key in [">=75", "70-75", "65-70"]:
-            if key in rsi_agg:
-                pnls = rsi_agg[key]["pnls"]
-                n = len(pnls)
-                if n > 0:
-                    avg = sum(pnls) / n
-                    wins = sum(1 for p in pnls if p > 0)
-                    ranking_rsi.append({"range": key, "avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n})
-            else:
-                ranking_rsi.append({"range": key, "avg_pnl": 0, "win_rate": 0, "count": 0})
-
-        ranking_hour = [{"hour": h, "avg_pnl": round(sum(ps) / len(ps), 3) if (ps := hour_agg[h]["pnls"]) else None, "count": len(hour_agg[h]["pnls"])} for h in range(24)]
-
-        ranking_tier = fmt_agg(tier_agg, "tier")
-
-        ranking_symbol = fmt_agg(symbol_agg, "symbol")
-        ranking_trend_short = fmt_agg(trend_agg, "trend")
-
-        best_combo = None
-        candidates = []
-        for v in combo_agg.values():
-            pnls = v["pnls"]
-            n = len(pnls)
-            if n < 3:
-                continue
-            avg = sum(pnls) / n
-            wins = sum(1 for p in pnls if p > 0)
-            candidates.append({"label": v["label"], "avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n})
-        if candidates:
-            candidates.sort(key=lambda x: x["avg_pnl"], reverse=True)
-            best_combo = candidates[0]
+        global_metrics = aggregate_shadow_simulations(rows, "SHORT")
+        tier_metrics = {}
+        for t, t_rows in rows_by_tier.items():
+            tier_metrics[t] = aggregate_shadow_simulations(t_rows, "SHORT")
 
         return {
-            "total_simulations": sum(len(v["pnls"]) for v in sltp_agg.values()),
-            "ranking_sltp": ranking_sltp,
-            "ranking_rsi": ranking_rsi,
-            "ranking_hour": ranking_hour,
-            "ranking_tier": ranking_tier,
-            "ranking_symbol": ranking_symbol,
-            "ranking_trend": ranking_trend_short,
-            "best_combo": best_combo,
+            **global_metrics,
+            "tiers": tier_metrics
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -685,71 +759,34 @@ async def get_shadow_metrics(min_model_score: float = 0.73):
 
         if not rows:
             return {
-                "total_simulations": 0,
-                "ranking_sltp": [],
-                "ranking_tier": [],
-                "ranking_rsi": [],
-                "ranking_hour": [],
-                "best_combo": None,
+                "total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_tier": [], "ranking_symbol": [], "ranking_trend": [], "best_combo": None, "best_scores": [],
+                "tiers": {
+                    "Major": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []},
+                    "Strong Alt": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []},
+                    "High Volatility": {"total_simulations": 0, "ranking_sltp": [], "ranking_rsi": [], "ranking_hour": [], "ranking_symbol": [], "best_combo": None, "best_scores": []}
+                }
             }
 
-        sltp_agg, tier_agg, symbol_agg = {}, {}, {}
-        rsi_agg, trend_agg = {}, {}
-        hour_agg = {h: {"pnls": []} for h in range(24)}
+        # Group by tier
+        rows_by_tier = {
+            "Major": [],
+            "Strong Alt": [],
+            "High Volatility": []
+        }
         for row in rows:
-            symbol, tier, rsi_e, hour_e, entry_price, sl, tp, pnl, reason, minutes, ms, bt = row
-            tier = tier or "Desconhecido"
-            pnl = float(pnl) if pnl else 0
-            rsi_e = float(rsi_e) if rsi_e else None
-            hour_e = int(hour_e) if hour_e is not None else None
-            btc_trend = bt or "neutral"
-            sltp_key = f"SL={sl or 'Nulo'} | TP={tp or 'Nulo'}"
-            if sltp_key not in sltp_agg:
-                sltp_agg[sltp_key] = {"config": sltp_key, "sl": sl, "tp": tp, "pnls": []}
-            sltp_agg[sltp_key]["pnls"].append(pnl)
-            if tier not in tier_agg:
-                tier_agg[tier] = {"tier": tier, "pnls": []}
-            tier_agg[tier]["pnls"].append(pnl)
-            if rsi_e is not None:
-                if rsi_e < 25: rl = "<25"
-                elif rsi_e < 30: rl = "25-30"
-                elif rsi_e < 35: rl = "30-35"
-                else: rl = "35+"
-                if rl not in rsi_agg: rsi_agg[rl] = {"pnls": []}
-                rsi_agg[rl]["pnls"].append(pnl)
-            if hour_e is not None:
-                hour_agg[hour_e]["pnls"].append(pnl)
-            if btc_trend not in trend_agg:
-                trend_agg[btc_trend] = {"pnls": []}
-            trend_agg[btc_trend]["pnls"].append(pnl)
+            t = row[1] or "Desconhecido"
+            if t in rows_by_tier:
+                rows_by_tier[t].append(row)
 
-        def fmt(agg, key, lim=15):
-            out = []
-            for v in agg.values():
-                pnls = v["pnls"]
-                if len(pnls) < 5: continue
-                avg = sum(pnls) / len(pnls)
-                wins = sum(1 for p in pnls if p > 0)
-                out.append({"avg_pnl": round(avg, 3), "win_rate": round(wins / len(pnls) * 100, 1), "count": len(pnls), key: v.get(key, "")})
-            out.sort(key=lambda x: x["avg_pnl"], reverse=True)
-            return out[:lim]
+        global_metrics = aggregate_shadow_simulations(rows, "LONG")
+        tier_metrics = {}
+        for t, t_rows in rows_by_tier.items():
+            tier_metrics[t] = aggregate_shadow_simulations(t_rows, "LONG")
 
-        ranking_sltp = fmt(sltp_agg, "config")
-        ranking_tier = fmt(tier_agg, "tier")
-        ranking_trend = fmt(trend_agg, "trend")
-        ranking_rsi = []
-        for k in ["<25", "25-30", "30-35", "35+"]:
-            v = rsi_agg.get(k, {"pnls": []})
-            pnls = v["pnls"]
-            n = len(pnls)
-            a = sum(pnls) / n if n > 0 else 0
-            w = sum(1 for p in pnls if p > 0)
-            ranking_rsi.append({"range": k, "avg_pnl": round(a, 3), "win_rate": round(w / n * 100, 1) if n else 0, "count": n})
-        ranking_hour_raw = [{"hour": h, "avg_pnl": round(sum(p) / len(p), 3) if (p := hour_agg[h]["pnls"]) else None, "count": len(p)} for h in range(24)]
-        best_combo = ranking_sltp[0] if ranking_sltp else None
-        return {"total_simulations": sum(len(v["pnls"]) for v in sltp_agg.values()), "ranking_sltp": ranking_sltp,
-                "ranking_tier": ranking_tier, "ranking_rsi": ranking_rsi, "ranking_hour": ranking_hour_raw,
-                "ranking_trend": ranking_trend, "best_combo": best_combo}
+        return {
+            **global_metrics,
+            "tiers": tier_metrics
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

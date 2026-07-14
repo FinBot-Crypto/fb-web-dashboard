@@ -130,6 +130,7 @@ export default function Shadow() {
   const [error, setError] = useState(null);
   const [sltpTab, setSltpTab] = useState('all');
   const [minModelScore, setMinModelScore] = useState(0.55);
+  const [activeTierTab, setActiveTierTab] = useState('All');
 
   useEffect(() => {
     setLoading(true);
@@ -155,13 +156,17 @@ export default function Shadow() {
     </div>
   );
 
-  const noData = !data || data.total_simulations === 0;
-  const rankingSltp = data?.ranking_sltp || [];
+  const tierData = activeTierTab === 'All' ? data : (data?.tiers?.[activeTierTab] || null);
+
+  const noData = !tierData || tierData.total_simulations === 0;
+  const rankingSltp = tierData?.ranking_sltp || [];
+  const rankingRsi = tierData?.ranking_rsi || [];
+  const rankingHour = tierData?.ranking_hour || [];
+  const rankingSymbol = tierData?.ranking_symbol || [];
+  const bestCombo = tierData?.best_combo;
+  const bestScores = tierData?.best_scores || [];
+  
   const rankingTier = data?.ranking_tier || [];
-  const rankingRsi = data?.ranking_rsi || [];
-  const rankingHour = data?.ranking_hour || [];
-  const rankingHourWindows = data?.ranking_hour_windows || [];
-  const bestCombo = data?.best_combo;
 
   // Agrupar horas em janelas para o heatmap
   const heatmapRows = [
@@ -235,6 +240,31 @@ export default function Shadow() {
             <option value="0.73">0.73 (Prod)</option>
           </select>
         </div>
+      </div>
+
+      {/* Tier Selector Tabs */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', background: 'rgba(15,23,42,0.3)', padding: '6px', borderRadius: '12px', border: '1px solid rgba(71,85,105,0.2)', overflowX: 'auto' }}>
+        {['All', 'Major', 'Strong Alt', 'High Volatility'].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTierTab(tab)}
+            style={{
+              flex: 1,
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: activeTierTab === tab ? 'rgba(99,102,241,0.2)' : 'transparent',
+              color: activeTierTab === tab ? '#a5b4fc' : '#94a3b8',
+              border: activeTierTab === tab ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
+              fontWeight: activeTierTab === tab ? 700 : 500,
+              fontSize: '14px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tab === 'All' ? '🌐 Todos os Tiers' : tab}
+          </button>
+        ))}
       </div>
 
       {noData ? (
@@ -455,6 +485,45 @@ export default function Shadow() {
               ))
             }
           </div>
+
+          {/* Best Scores Table */}
+          {bestScores.length > 0 && (
+            <div style={sectionStyle}>
+              <h2 style={{ color: '#e2e8f0', fontSize: '17px', fontWeight: 700, marginTop: 0, marginBottom: '20px' }}>
+                🚀 Top 10 Melhores Scores Avaliados
+              </h2>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(71,85,105,0.4)', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+                      <th style={{ padding: '12px 8px' }}>Ativo</th>
+                      <th style={{ padding: '12px 8px' }}>Score do Modelo</th>
+                      <th style={{ padding: '12px 8px' }}>RSI</th>
+                      <th style={{ padding: '12px 8px' }}>Horário (UTC)</th>
+                      <th style={{ padding: '12px 8px' }}>Config SL/TP</th>
+                      <th style={{ padding: '12px 8px' }}>Resultado Simulado</th>
+                      <th style={{ padding: '12px 8px' }}>Tempo / Motivo Saída</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bestScores.map((s, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(71,85,105,0.2)', fontSize: '13.5px', color: '#e2e8f0' }}>
+                        <td style={{ padding: '12px 8px', fontWeight: 700 }}>{s.symbol}</td>
+                        <td style={{ padding: '12px 8px', color: '#818cf8', fontWeight: 600 }}>{(s.score).toFixed(4)}</td>
+                        <td style={{ padding: '12px 8px' }}>{s.rsi ? s.rsi.toFixed(1) : 'N/A'}</td>
+                        <td style={{ padding: '12px 8px' }}>{s.hour !== null ? `${s.hour.toString().padStart(2, '0')}:00` : 'N/A'}</td>
+                        <td style={{ padding: '12px 8px', color: '#94a3b8' }}>SL={s.sl || 'Nulo'} | TP={s.tp || 'Nulo'}</td>
+                        <td style={{ padding: '12px 8px', color: s.pnl >= 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                          {pnlSign(s.pnl)}
+                        </td>
+                        <td style={{ padding: '12px 8px', fontSize: '12px', color: '#64748b' }}>{s.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         </>
       )}
