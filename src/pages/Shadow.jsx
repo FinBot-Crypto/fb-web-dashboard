@@ -165,6 +165,7 @@ export default function Shadow() {
   const rankingSymbol = tierData?.ranking_symbol || [];
   const bestCombo = tierData?.best_combo;
   const bestScores = tierData?.best_scores || [];
+  const rankingHourWindows = tierData?.ranking_hour_windows || [];
   
   const rankingTier = data?.ranking_tier || [];
 
