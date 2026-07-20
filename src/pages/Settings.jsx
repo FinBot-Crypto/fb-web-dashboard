@@ -589,7 +589,12 @@ export default function Settings() {
                       max="50"
                       value={settings[`long_${tier}_tp`] ?? 3.0}
                       onChange={(e) => handleChange(`long_${tier}_tp`, parseFloat(e.target.value))}
-                                    {/* Progressive Alavancagem Indication and Controls */}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                {/* Progressive Alavancagem Indication and Controls */}
                 <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <label style={{ ...labelStyle, marginBottom: '8px', color: '#818cf8', fontWeight: 700 }}>⚡ Escalonamento de Alavancagem Progressiva</label>
                   
