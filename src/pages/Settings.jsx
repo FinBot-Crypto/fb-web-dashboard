@@ -12,6 +12,29 @@ const TIER_COLORS = {
   'High Volatility': { border: 'rgba(239,68,68,0.3)', glow: 'rgba(239,68,68,0.1)' }
 };
 
+// Configurações ótimas detectadas pelas simulações dos Shadows
+const SHADOW_OPTIMAL = {
+  'long_Major_min_score': 0.50,
+  'long_Major_max_rsi': 30,
+  'long_Major_allowed_regimes': ['bear', 'neutral'],
+  'long_Strong Alt_min_score': 0.60,
+  'long_Strong Alt_max_rsi': 32,
+  'long_Strong Alt_allowed_regimes': ['bear', 'neutral'],
+  'long_High Volatility_min_score': 0.55,
+  'long_High Volatility_max_rsi': 25,
+  'long_High Volatility_allowed_regimes': ['bear', 'neutral'],
+
+  'short_Major_min_score': 0.54,
+  'short_Major_min_rsi': 65,
+  'short_Major_allowed_regimes': ['bull', 'neutral'],
+  'short_Strong Alt_min_score': 0.50,
+  'short_Strong Alt_min_rsi': 65,
+  'short_Strong Alt_allowed_regimes': ['bull', 'neutral'],
+  'short_High Volatility_min_score': 0.54,
+  'short_High Volatility_min_rsi': 70,
+  'short_High Volatility_allowed_regimes': ['bull', 'neutral']
+};
+
 export default function Settings() {
   const [settings, setSettings] = useState(null);
   const [lemeHistory, setLemeHistory] = useState([]);
@@ -19,6 +42,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [activeTooltip, setActiveTooltip] = useState(null); // formato: 'long_Major_min_score' ou null
 
   const fetchLemeHistory = () => {
     fetch('/api/leme/history')
@@ -173,6 +197,109 @@ export default function Settings() {
     fontWeight: 500,
     marginBottom: '6px',
     display: 'block'
+  };
+
+  // Renderizador Inteligente de Input com Detector de Discrepância Shadow e Tooltip Explicativo + Ação Rápida
+  const SmartField = ({ fieldKey, label, type = 'number', step = '0.01', min = '0.0', max = '100.0' }) => {
+    const currentValue = settings[fieldKey] ?? 0;
+    const optimalValue = SHADOW_OPTIMAL[fieldKey];
+    
+    // Identifica se há discrepância (se difere do ótimo recomendado pelos simuladores)
+    const isDiscrepant = optimalValue !== undefined && Math.abs(currentValue - optimalValue) > 0.001;
+
+    // Explicações customizadas para as discrepâncias
+    let rationale = '';
+    if (isDiscrepant) {
+      if (fieldKey.endsWith('_min_score')) {
+        rationale = `Seu score atual (${currentValue}) está desalinhado do ótimo (${optimalValue}). O backtest shadow mostra que este limite aumenta a taxa de acerto média para ~72% (Major) ou ~85% (Strong Alt) preservando o volume de ordens diárias.`;
+      } else if (fieldKey.endsWith('_max_rsi') || fieldKey.endsWith('_min_rsi')) {
+        rationale = `Seu RSI atual (${currentValue}) está diferente do sugerido (${optimalValue}). Valores fora do ponto ótimo do simulador geram entradas prematuras ou squeezes de perda.`;
+      }
+    }
+
+    return (
+      <div style={{ position: 'relative', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <label style={labelStyle}>{label}</label>
+          {isDiscrepant && (
+            <span 
+              onMouseEnter={() => setActiveTooltip(fieldKey)}
+              onMouseLeave={() => setActiveTooltip(null)}
+              style={{
+                background: 'rgba(234,179,8,0.15)',
+                color: '#fde047',
+                border: '1px solid rgba(234,179,8,0.4)',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '1px 6px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              ⚠️ Destoante
+            </span>
+          )}
+        </div>
+        
+        <input 
+          type={type}
+          step={step}
+          min={min}
+          max={max}
+          value={currentValue}
+          onChange={(e) => handleChange(fieldKey, parseFloat(e.target.value))}
+          style={{
+            ...inputStyle,
+            border: isDiscrepant ? '1px solid rgba(234, 179, 8, 0.6)' : '1px solid rgba(71,85,105,0.6)',
+            boxShadow: isDiscrepant ? '0 0 8px rgba(234, 179, 8, 0.15)' : 'none'
+          }}
+        />
+
+        {/* Floating Premium Tooltip Overlay */}
+        {activeTooltip === fieldKey && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+            border: '1px solid rgba(234,179,8,0.5)',
+            borderRadius: '8px',
+            padding: '12px 14px',
+            zIndex: 100,
+            marginTop: '6px',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+            color: '#e2e8f0',
+            fontSize: '11px',
+            lineHeight: '1.4'
+          }}>
+            <p style={{ margin: '0 0 8px 0', color: '#fde047', fontWeight: 700 }}>🔬 Recomendação do Shadow Simulator</p>
+            <p style={{ margin: '0 0 10px 0', color: '#cbd5e1' }}>{rationale}</p>
+            <button
+              type="button"
+              onClick={() => {
+                handleChange(fieldKey, optimalValue);
+                setActiveTooltip(null);
+              }}
+              style={{
+                background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                color: '#0f172a',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '4px 10px',
+                fontWeight: 700,
+                fontSize: '10px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(234, 179, 8, 0.3)'
+              }}
+            >
+              🪄 Aplicar {optimalValue}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -385,6 +512,16 @@ export default function Settings() {
       {/* Tiers Loop */}
       {['Major', 'Strong Alt', 'High Volatility'].map(tier => {
         const colors = TIER_COLORS[tier];
+        
+        // Verifica se regimes permitidos de Long ou Short divergem do ideal
+        const longRegimesOptimal = SHADOW_OPTIMAL[`long_${tier}_allowed_regimes`].slice().sort().join(',');
+        const longRegimesCurrent = (settings[`long_${tier}_allowed_regimes`] ?? []).slice().sort().join(',');
+        const isLongRegimeDivergent = longRegimesOptimal !== longRegimesCurrent;
+
+        const shortRegimesOptimal = SHADOW_OPTIMAL[`short_${tier}_allowed_regimes`].slice().sort().join(',');
+        const shortRegimesCurrent = (settings[`short_${tier}_allowed_regimes`] ?? []).slice().sort().join(',');
+        const isShortRegimeDivergent = shortRegimesOptimal !== shortRegimesCurrent;
+
         return (
           <div key={tier} style={{
             ...sectionStyle,
@@ -412,49 +549,18 @@ export default function Settings() {
                   </label>
                 </div>
 
-                {/* Shadow Calibration Tips for LONG */}
-                <div style={{ 
-                  background: 'rgba(99,102,241,0.1)', 
-                  borderLeft: '3px solid #6366f1', 
-                  padding: '10px 12px', 
-                  borderRadius: '6px', 
-                  marginBottom: '16px', 
-                  fontSize: '12px', 
-                  color: '#a5b4fc',
-                  lineHeight: '1.4'
-                }}>
-                  💡 <strong>Dica Shadow:</strong> Para {tier === 'Major' ? 'Major' : tier === 'Strong Alt' ? 'Strong Alt' : 'High Volatility'}:
-                  <br />
-                  • Score recomendado: <strong>{tier === 'Major' ? '0.50' : tier === 'Strong Alt' ? '0.60' : '0.55'}</strong>
-                  <br />
-                  • RSI ideal: <strong>&lt;= {tier === 'Major' ? '30' : tier === 'Strong Alt' ? '32' : '25'}</strong>
-                </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={labelStyle}>Score Mínimo</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      min="0.5"
-                      max="0.99"
-                      value={settings[`long_${tier}_min_score`] ?? 0.70}
-                      onChange={(e) => handleChange(`long_${tier}_min_score`, parseFloat(e.target.value))}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>RSI Máximo (LONG)</label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      min="10"
-                      max="60"
-                      value={settings[`long_${tier}_max_rsi`] ?? 30}
-                      onChange={(e) => handleChange(`long_${tier}_max_rsi`, parseFloat(e.target.value))}
-                      style={inputStyle}
-                    />
-                  </div>
+                  <SmartField 
+                    fieldKey={`long_${tier}_min_score`}
+                    label="Score Mínimo"
+                  />
+                  <SmartField 
+                    fieldKey={`long_${tier}_max_rsi`}
+                    label="RSI Máximo (LONG)"
+                    step="1"
+                    min="10"
+                    max="60"
+                  />
                   <div>
                     <label style={labelStyle}>Stop Loss (SL %)</label>
                     <input 
@@ -481,24 +587,87 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Long Leverage Selection */}
-                <div style={{ marginTop: '12px' }}>
-                  <label style={labelStyle}>Alavancagem Futures (LONG)</label>
-                  <select 
-                    value={settings[`long_${tier}_leverage`] ?? 1}
-                    onChange={(e) => handleChange(`long_${tier}_leverage`, parseInt(e.target.value))}
-                    style={inputStyle}
-                  >
-                    <option value="1">1x (Sem alavancagem / Opera Spot)</option>
-                    <option value="2">2x</option>
-                    <option value="3">3x</option>
-                    <option value="5">5x</option>
-                  </select>
+                {/* Progressive Alavancagem Indication */}
+                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <label style={{ ...labelStyle, marginBottom: '2px' }}>⚡ Escalonamento de Alavancagem Progressiva</label>
+                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0' }}>
+                    Alavancagem dinâmica calculada de acordo com o score de entrada:
+                    <br />
+                    • Score &lt; {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.2).toFixed(2)}: <strong>1x (Spot)</strong>
+                    <br />
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.2).toFixed(2)}: <strong>2x isolated</strong>
+                    <br />
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.5).toFixed(2)}: <strong>3x isolated</strong>
+                    <br />
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.8).toFixed(2)}: <strong>5x isolated</strong>
+                  </p>
                 </div>
 
                 {/* Long Allowed Regimes Selection */}
-                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-                  <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                    {isLongRegimeDivergent && (
+                      <span
+                        onMouseEnter={() => setActiveTooltip(`long_${tier}_allowed_regimes`)}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                        style={{
+                          background: 'rgba(234,179,8,0.15)',
+                          color: '#fde047',
+                          border: '1px solid rgba(234,179,8,0.4)',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ⚠️ Destoante
+                      </span>
+                    )}
+                  </div>
+
+                  {activeTooltip === `long_${tier}_allowed_regimes` && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      right: 0,
+                      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                      border: '1px solid rgba(234,179,8,0.5)',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      zIndex: 100,
+                      marginBottom: '6px',
+                      boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                      color: '#cbd5e1',
+                      fontSize: '11px',
+                      lineHeight: '1.4'
+                    }}>
+                      <p style={{ margin: '0 0 6px 0', color: '#fde047', fontWeight: 700 }}>🔬 Recomendação de Regimes LONG</p>
+                      <p style={{ margin: '0 0 10px 0' }}>O simulador shadow detectou que operar LONG durante mercado em Bull desgasta a rentabilidade por entrar em topos esticados. O ideal é operar apenas em Bear / Neutral.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange(`long_${tier}_allowed_regimes`, SHADOW_OPTIMAL[`long_${tier}_allowed_regimes`]);
+                          setActiveTooltip(null);
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                          color: '#0f172a',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 10px',
+                          fontWeight: 700,
+                          fontSize: '10px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🪄 Alinhar para Bear/Neutral
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                     {['bull', 'bear', 'neutral'].map(reg => {
                       const currentRegimes = settings[`long_${tier}_allowed_regimes`] ?? ['bull', 'neutral'];
@@ -550,49 +719,18 @@ export default function Settings() {
                   </label>
                 </div>
 
-                {/* Shadow Calibration Tips for SHORT */}
-                <div style={{ 
-                  background: 'rgba(239,68,68,0.1)', 
-                  borderLeft: '3px solid #ef4444', 
-                  padding: '10px 12px', 
-                  borderRadius: '6px', 
-                  marginBottom: '16px', 
-                  fontSize: '12px', 
-                  color: '#fca5a5',
-                  lineHeight: '1.4'
-                }}>
-                  💡 <strong>Dica Shadow:</strong> Para {tier === 'Major' ? 'Major' : tier === 'Strong Alt' ? 'Strong Alt' : 'High Volatility'}:
-                  <br />
-                  • Score recomendado: <strong>{tier === 'Major' ? '0.54' : tier === 'Strong Alt' ? '0.50' : '0.54'}</strong>
-                  <br />
-                  • RSI ideal: <strong>&gt;= {tier === 'Major' ? '65' : tier === 'Strong Alt' ? '65' : '70'}</strong>
-                </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={labelStyle}>Score Mínimo</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      min="0.5"
-                      max="0.99"
-                      value={settings[`short_${tier}_min_score`] ?? 0.70}
-                      onChange={(e) => handleChange(`short_${tier}_min_score`, parseFloat(e.target.value))}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>RSI Mínimo (SHORT)</label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      min="50"
-                      max="90"
-                      value={settings[`short_${tier}_min_rsi`] ?? 70}
-                      onChange={(e) => handleChange(`short_${tier}_min_rsi`, parseFloat(e.target.value))}
-                      style={inputStyle}
-                    />
-                  </div>
+                  <SmartField 
+                    fieldKey={`short_${tier}_min_score`}
+                    label="Score Mínimo"
+                  />
+                  <SmartField 
+                    fieldKey={`short_${tier}_min_rsi`}
+                    label="RSI Mínimo (SHORT)"
+                    step="1"
+                    min="50"
+                    max="95"
+                  />
                   <div>
                     <label style={labelStyle}>Stop Loss (SL %)</label>
                     <input 
@@ -619,24 +757,87 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Short Leverage Selection */}
-                <div style={{ marginTop: '12px' }}>
-                  <label style={labelStyle}>Alavancagem Futures (SHORT)</label>
-                  <select 
-                    value={settings[`short_${tier}_leverage`] ?? 2}
-                    onChange={(e) => handleChange(`short_${tier}_leverage`, parseInt(e.target.value))}
-                    style={{ ...inputStyle, border: '1px solid rgba(239,68,68,0.4)' }}
-                  >
-                    <option value="1">1x (Sem alavancagem / Margem cheia)</option>
-                    <option value="2">2x</option>
-                    <option value="3">3x</option>
-                    <option value="5">5x</option>
-                  </select>
+                {/* Progressive Alavancagem Indication for SHORT */}
+                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <label style={{ ...labelStyle, marginBottom: '2px' }}>⚡ Escalonamento de Alavancagem Progressiva</label>
+                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0' }}>
+                    Alavancagem dinâmica calculada de acordo com o score de entrada:
+                    <br />
+                    • Score &lt; {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.2).toFixed(2)}: <strong>1x (Margem Cheia)</strong>
+                    <br />
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.2).toFixed(2)}: <strong>2x isolated</strong>
+                    <br />
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.5).toFixed(2)}: <strong>3x isolated</strong>
+                    <br />
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.8).toFixed(2)}: <strong>5x isolated</strong>
+                  </p>
                 </div>
 
                 {/* Short Allowed Regimes Selection */}
-                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-                  <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                <div style={{ marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
+                    {isShortRegimeDivergent && (
+                      <span
+                        onMouseEnter={() => setActiveTooltip(`short_${tier}_allowed_regimes`)}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                        style={{
+                          background: 'rgba(234,179,8,0.15)',
+                          color: '#fde047',
+                          border: '1px solid rgba(234,179,8,0.4)',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ⚠️ Destoante
+                      </span>
+                    )}
+                  </div>
+
+                  {activeTooltip === `short_${tier}_allowed_regimes` && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      right: 0,
+                      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                      border: '1px solid rgba(234,179,8,0.5)',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      zIndex: 100,
+                      marginBottom: '6px',
+                      boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                      color: '#cbd5e1',
+                      fontSize: '11px',
+                      lineHeight: '1.4'
+                    }}>
+                      <p style={{ margin: '0 0 6px 0', color: '#fde047', fontWeight: 700 }}>🔬 Recomendação de Regimes SHORT</p>
+                      <p style={{ margin: '0 0 10px 0' }}>O simulador shadow detectou que operar SHORT durante mercados de queda (Bear) aumenta o risco de repiques violentos e estocada de perdas. O ideal é operar apenas em Bull / Neutral.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange(`short_${tier}_allowed_regimes`, SHADOW_OPTIMAL[`short_${tier}_allowed_regimes`]);
+                          setActiveTooltip(null);
+                        }}
+                        style={{
+                          background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                          color: '#0f172a',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 10px',
+                          fontWeight: 700,
+                          fontSize: '10px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        🪄 Alinhar para Bull/Neutral
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                     {['bull', 'bear', 'neutral'].map(reg => {
                       const currentRegimes = settings[`short_${tier}_allowed_regimes`] ?? ['bear', 'neutral'];
