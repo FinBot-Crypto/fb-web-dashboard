@@ -451,7 +451,7 @@ export default function ShortShadow() {
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
               {['bull', 'bear', 'neutral'].map(tr => {
-                const found = (data?.ranking_trend || []).find(x => x.trend === tr);
+                const found = (tierData?.ranking_trend || []).find(x => x.trend === tr);
                 const avg_pnl = found ? found.avg_pnl : 0.0;
                 const win_rate = found ? found.win_rate : 0.0;
                 const count = found ? found.count : 0;
