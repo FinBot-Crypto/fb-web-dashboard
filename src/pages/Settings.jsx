@@ -100,6 +100,13 @@ export default function Settings() {
           return;
         }
       }
+      if (k.endsWith('_lev_2x_pct') || k.endsWith('_lev_3x_pct') || k.endswith('_lev_5x_pct')) {
+        const val = parseFloat(settings[k]);
+        if (isNaN(val) || val < 0.0 || val > 1.0) {
+          setFeedback({ type: 'error', text: `O percentual de alavancagem progressiva para ${k} deve ser entre 0.00 e 1.00 (ex: 0.20)` });
+          return;
+        }
+      }
       if (k === 'leme_max_consecutive_sl') {
         const val = parseInt(settings[k]);
         if (isNaN(val) || val <= 0 || val > 20) {
@@ -582,24 +589,57 @@ export default function Settings() {
                       max="50"
                       value={settings[`long_${tier}_tp`] ?? 3.0}
                       onChange={(e) => handleChange(`long_${tier}_tp`, parseFloat(e.target.value))}
-                      style={inputStyle}
-                    />
+                                    {/* Progressive Alavancagem Indication and Controls */}
+                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <label style={{ ...labelStyle, marginBottom: '8px', color: '#818cf8', fontWeight: 700 }}>⚡ Escalonamento de Alavancagem Progressiva</label>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 2x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`long_${tier}_lev_2x_pct`] ?? 0.20}
+                        onChange={(e) => handleChange(`long_${tier}_lev_2x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 3x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`long_${tier}_lev_3x_pct`] ?? 0.50}
+                        onChange={(e) => handleChange(`long_${tier}_lev_3x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 5x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`long_${tier}_lev_5x_pct`] ?? 0.80}
+                        onChange={(e) => handleChange(`long_${tier}_lev_5x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Progressive Alavancagem Indication */}
-                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <label style={{ ...labelStyle, marginBottom: '2px' }}>⚡ Escalonamento de Alavancagem Progressiva</label>
-                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0' }}>
-                    Alavancagem dinâmica calculada de acordo com o score de entrada:
+                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                    • Score &lt; {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>1x (Spot)</strong>
                     <br />
-                    • Score &lt; {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.2).toFixed(2)}: <strong>1x (Spot)</strong>
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>2x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.2).toFixed(2)}: <strong>2x isolated</strong>
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_3x_pct`] ?? 0.50)).toFixed(2)}: <strong>3x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.5).toFixed(2)}: <strong>3x isolated</strong>
-                    <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * 0.8).toFixed(2)}: <strong>5x isolated</strong>
+                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_5x_pct`] ?? 0.80)).toFixed(2)}: <strong>5x isolated</strong>
                   </p>
                 </div>
 
@@ -757,19 +797,57 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Progressive Alavancagem Indication for SHORT */}
-                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <label style={{ ...labelStyle, marginBottom: '2px' }}>⚡ Escalonamento de Alavancagem Progressiva</label>
-                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0' }}>
-                    Alavancagem dinâmica calculada de acordo com o score de entrada:
+                {/* Progressive Alavancagem Indication and Controls for SHORT */}
+                <div style={{ marginTop: '14px', background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <label style={{ ...labelStyle, marginBottom: '8px', color: '#f87171', fontWeight: 700 }}>⚡ Escalonamento de Alavancagem Progressiva</label>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 2x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`short_${tier}_lev_2x_pct`] ?? 0.20}
+                        onChange={(e) => handleChange(`short_${tier}_lev_2x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 3x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`short_${tier}_lev_3x_pct`] ?? 0.50}
+                        onChange={(e) => handleChange(`short_${tier}_lev_3x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: '10px' }}>Threshold 5x (%)</label>
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0.0"
+                        max="1.0"
+                        value={settings[`short_${tier}_lev_5x_pct`] ?? 0.80}
+                        onChange={(e) => handleChange(`short_${tier}_lev_5x_pct`, parseFloat(e.target.value))}
+                        style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                    • Score &lt; {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>1x (Margem Cheia)</strong>
                     <br />
-                    • Score &lt; {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.2).toFixed(2)}: <strong>1x (Margem Cheia)</strong>
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>2x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.2).toFixed(2)}: <strong>2x isolated</strong>
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_3x_pct`] ?? 0.50)).toFixed(2)}: <strong>3x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.5).toFixed(2)}: <strong>3x isolated</strong>
-                    <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * 0.8).toFixed(2)}: <strong>5x isolated</strong>
+                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_5x_pct`] ?? 0.80)).toFixed(2)}: <strong>5x isolated</strong>
                   </p>
                 </div>
 

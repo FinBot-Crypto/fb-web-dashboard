@@ -1173,6 +1173,10 @@ async def update_bot_settings(payload: dict):
                 val = int(v)
                 if val <= 0 or val > 720:
                     raise HTTPException(status_code=400, detail="leme_cooldown_hours deve ser entre 1 e 720 horas")
+            elif k.endswith('_lev_2x_pct') or k.endswith('_lev_3x_pct') or k.endswith('_lev_5x_pct'):
+                val = float(v)
+                if val < 0.0 or val > 1.0:
+                    raise HTTPException(status_code=400, detail=f"O multiplicador de alavancagem progressiva para {k} deve ser entre 0.0 e 1.0 (ex: 0.20)")
             elif k == "leme_shadow_min_trades":
                 val = int(v)
                 if val <= 0 or val > 50:
