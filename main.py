@@ -484,7 +484,11 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
     symbol_agg = {}
     combo_agg = {}
     tier_agg = {}
-    trend_agg = {}
+    trend_agg = {
+        "bull": {"trend": "bull", "pnls": []},
+        "bear": {"trend": "bear", "pnls": []},
+        "neutral": {"trend": "neutral", "pnls": []}
+    }
     window_agg = {
         "Madrugada (0–6h)": {"window": "Madrugada (0–6h)", "pnls": []},
         "Manhã (6–12h)": {"window": "Manhã (6–12h)", "pnls": []},
@@ -572,10 +576,11 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
             pnls = v["pnls"]
             n = len(pnls)
             if n == 0:
-                continue
-            avg = sum(pnls) / n
-            wins = sum(1 for p in pnls if p > 0)
-            item = {"avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n}
+                item = {"avg_pnl": 0, "win_rate": 0, "count": 0}
+            else:
+                avg = sum(pnls) / n
+                wins = sum(1 for p in pnls if p > 0)
+                item = {"avg_pnl": round(avg, 3), "win_rate": round(wins / n * 100, 1), "count": n}
             if label_key in v:
                 item[label_key] = v[label_key]
             out.append(item)
