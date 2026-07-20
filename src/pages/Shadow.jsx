@@ -497,10 +497,12 @@ export default function Shadow() {
                     <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '16px', textTransform: 'uppercase', marginBottom: '8px' }}>
                       {tr === 'bull' ? 'Bull' : tr === 'bear' ? 'Bear' : 'Neutral'}
                     </div>
-                    <div style={{ color: pnlColor(avg_pnl), fontSize: '24px', fontWeight: 800 }}>
-                      {pnlSign(avg_pnl)}
+                    <div style={{ color: count > 0 ? pnlColor(avg_pnl) : '#475569', fontSize: '24px', fontWeight: 800 }}>
+                      {count > 0 ? pnlSign(avg_pnl) : '–'}
                     </div>
-                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>{count} sims | WR {win_rate}%</div>
+                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>
+                      {count > 0 ? `${count} sims | WR ${win_rate}%` : 'Sem dados'}
+                    </div>
                   </div>
                 );
               })}
