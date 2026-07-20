@@ -165,7 +165,7 @@ export default function Shadow() {
     </div>
   );
 
-  const tierData = activeTierTab === 'All' ? data : (data?.tiers?.[activeTierTab] || null);
+  const tierData = data?.tiers?.[activeTierTab] || null;
 
   const noData = !tierData || tierData.total_simulations === 0;
   const rankingSltp = tierData?.ranking_sltp || [];
