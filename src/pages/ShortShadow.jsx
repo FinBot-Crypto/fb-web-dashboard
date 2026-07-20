@@ -103,8 +103,8 @@ export default function ShortShadow() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [minModelScore, setMinModelScore] = useState(0.55);
-  const [activeTierTab, setActiveTierTab] = useState('All');
+  const [minModelScore, setMinModelScore] = useState(0.50);
+  const [activeTierTab, setActiveTierTab] = useState('Major');
 
   useEffect(() => {
     fetch('/api/settings')
@@ -217,6 +217,8 @@ export default function ShortShadow() {
             }}
           >
             <option value="0.0">Todos (0.00)</option>
+            <option value="0.40">0.40</option>
+            <option value="0.45">0.45</option>
             <option value="0.50">0.50</option>
             <option value="0.55">0.55</option>
             <option value="0.60">0.60</option>
@@ -231,7 +233,7 @@ export default function ShortShadow() {
 
       {/* Tier Selector Tabs */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', background: 'rgba(15,23,42,0.3)', padding: '6px', borderRadius: '12px', border: '1px solid rgba(71,85,105,0.2)', overflowX: 'auto' }}>
-        {['All', 'Major', 'Strong Alt', 'High Volatility'].map(tab => (
+        {['Major', 'Strong Alt', 'High Volatility'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTierTab(tab)}
@@ -249,13 +251,13 @@ export default function ShortShadow() {
               transition: 'all 0.2s'
             }}
           >
-            {tab === 'All' ? '🌐 Todos os Tiers' : tab}
+            {tab}
           </button>
         ))}
       </div>
 
       {/* Regimes Status Banner */}
-      {settings && activeTierTab !== 'All' && (
+      {settings && (
         <div style={{
           background: 'rgba(15,23,42,0.4)',
           border: '1px solid rgba(71,85,105,0.2)',
@@ -442,33 +444,39 @@ export default function ShortShadow() {
             </div>
           </div>
 
-          {(data?.ranking_trend && data.ranking_trend.length > 0) && (
+          {/* Tendencia de Mercado (BTC) */}
           <div style={sectionStyle}>
             <h2 style={{ color: '#e2e8f0', fontSize: '17px', fontWeight: 700, marginTop: 0, marginBottom: '20px' }}>
-              📈 Tendencia do BTC (Short)
+              📈 Tendência do BTC vs Resultado (Todos os Regimes)
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-              {data.ranking_trend.map(t => (
-                <div key={t.trend} style={{
-                  background: t.trend === 'bull' ? 'rgba(16,185,129,0.08)' : t.trend === 'bear' ? 'rgba(239,68,68,0.08)' : 'rgba(100,116,139,0.08)',
-                  border: `1px solid ${t.trend === 'bull' ? 'rgba(16,185,129,0.3)' : t.trend === 'bear' ? 'rgba(239,68,68,0.3)' : 'rgba(100,116,139,0.3)'}`,
-                  borderRadius: '12px', padding: '20px', textAlign: 'center',
-                }}>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>
-                    {t.trend === 'bull' ? '🐂' : t.trend === 'bear' ? '🐻' : '➖'}
+              {['bull', 'bear', 'neutral'].map(tr => {
+                const found = (data?.ranking_trend || []).find(x => x.trend === tr);
+                const avg_pnl = found ? found.avg_pnl : 0.0;
+                const win_rate = found ? found.win_rate : 0.0;
+                const count = found ? found.count : 0;
+                
+                return (
+                  <div key={tr} style={{
+                    background: tr === 'bull' ? 'rgba(16,185,129,0.08)' : tr === 'bear' ? 'rgba(239,68,68,0.08)' : 'rgba(100,116,139,0.08)',
+                    border: `1px solid ${tr === 'bull' ? 'rgba(16,185,129,0.3)' : tr === 'bear' ? 'rgba(239,68,68,0.3)' : 'rgba(100,116,139,0.3)'}`,
+                    borderRadius: '12px', padding: '20px', textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>
+                      {tr === 'bull' ? '🐂' : tr === 'bear' ? '🐻' : '➖'}
+                    </div>
+                    <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '16px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      {tr === 'bull' ? 'Bull' : tr === 'bear' ? 'Bear' : 'Neutral'}
+                    </div>
+                    <div style={{ color: pnlColor(avg_pnl), fontSize: '24px', fontWeight: 800 }}>
+                      {pnlSign(avg_pnl)}
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>{count} sims | WR {win_rate}%</div>
                   </div>
-                  <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '16px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    {t.trend === 'bull' ? 'Bull' : t.trend === 'bear' ? 'Bear' : 'Neutral'}
-                  </div>
-                  <div style={{ color: pnlColor(t.avg_pnl), fontSize: '24px', fontWeight: 800 }}>
-                    {pnlSign(t.avg_pnl)}
-                  </div>
-                  <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px' }}>{t.count} sims | WR {t.win_rate}%</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
             <div style={sectionStyle}>
