@@ -362,6 +362,68 @@ export default function Shadow() {
             </div>
           )}
 
+          {/* Premium Reference Calibration Table for LONG */}
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.85) 100%)',
+            border: '1px solid rgba(99,102,241,0.3)',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '24px',
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <span style={{ fontSize: '20px' }}>🎯</span>
+              <div>
+                <h2 style={{ color: '#f1f5f9', fontSize: '17px', fontWeight: 800, margin: 0 }}>
+                  Tabela Recomendada de Calibração (LONG)
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0 0' }}>
+                  Compare estes números com o painel de <strong>Configurações</strong> para calibrar seu robô de forma lucrativa.
+                </p>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', textAlign: 'left' }}>
+                    <th style={{ padding: '10px' }}>Tier</th>
+                    <th style={{ padding: '10px' }}>Score Mínimo</th>
+                    <th style={{ padding: '10px' }}>RSI Máximo (LONG)</th>
+                    <th style={{ padding: '10px' }}>Regimes Permitidos</th>
+                    <th style={{ padding: '10px' }}>Win-Rate Histórico</th>
+                    <th style={{ padding: '10px' }}>PnL Médio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#fde047' }}>🥇 Major</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>0.50 ou 0.51</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>&lt;= 30</td>
+                    <td style={{ padding: '12px 10px', color: '#86efac' }}>Bear / Neutral</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>72.7%</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>+1.07%</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#a5b4fc' }}>🥈 Strong Alt</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>0.60</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>&lt;= 32</td>
+                    <td style={{ padding: '12px 10px', color: '#86efac' }}>Bear / Neutral</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>85.0%</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>+1.05%</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#fca5a5' }}>🥉 High Volatility</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>0.55</td>
+                    <td style={{ padding: '12px 10px', color: '#f1f5f9' }}>&lt;= 25</td>
+                    <td style={{ padding: '12px 10px', color: '#86efac' }}>Bear / Neutral</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>59.8%</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10b981' }}>+0.93%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Performance por Tier */}
           <div style={sectionStyle}>
             <h2 style={{ color: '#e2e8f0', fontSize: '17px', fontWeight: 700, marginTop: 0, marginBottom: '20px' }}>
