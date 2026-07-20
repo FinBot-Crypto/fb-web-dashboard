@@ -571,7 +571,7 @@ def aggregate_shadow_simulations(rows, direction="LONG"):
         for v in agg_dict.values():
             pnls = v["pnls"]
             n = len(pnls)
-            if n < 5:
+            if n == 0:
                 continue
             avg = sum(pnls) / n
             wins = sum(1 for p in pnls if p > 0)
