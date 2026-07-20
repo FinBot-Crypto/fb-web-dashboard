@@ -856,65 +856,69 @@ export default function Settings() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
                     {isShortRegimeDivergent && (
-                      <span
+                      <div 
                         onMouseEnter={() => setActiveTooltip(`short_${tier}_allowed_regimes`)}
                         onMouseLeave={() => setActiveTooltip(null)}
-                        style={{
-                          background: 'rgba(234,179,8,0.15)',
-                          color: '#fde047',
-                          border: '1px solid rgba(234,179,8,0.4)',
-                          borderRadius: '4px',
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          padding: '1px 6px',
-                          cursor: 'pointer'
-                        }}
+                        style={{ display: 'inline-block', position: 'relative' }}
                       >
-                        ⚠️ Destoante
-                      </span>
+                        <span
+                          style={{
+                            background: 'rgba(234,179,8,0.15)',
+                            color: '#fde047',
+                            border: '1px solid rgba(234,179,8,0.4)',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ⚠️ Destoante
+                        </span>
+
+                        {activeTooltip === `short_${tier}_allowed_regimes` && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '100%',
+                            right: 0,
+                            width: '260px',
+                            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                            border: '1px solid rgba(234,179,8,0.5)',
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            zIndex: 200,
+                            marginBottom: '6px',
+                            boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
+                            color: '#cbd5e1',
+                            fontSize: '11px',
+                            lineHeight: '1.4'
+                          }}>
+                            <p style={{ margin: '0 0 6px 0', color: '#fde047', fontWeight: 700 }}>🔬 Recomendação de Regimes SHORT</p>
+                            <p style={{ margin: '0 0 10px 0' }}>O simulador shadow detectou que operar SHORT durante mercados de queda (Bear) aumenta o risco de repiques violentos e estocada de perdas. O ideal é operar apenas em Bull / Neutral.</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleChange(`short_${tier}_allowed_regimes`, SHADOW_OPTIMAL[`short_${tier}_allowed_regimes`]);
+                                setActiveTooltip(null);
+                              }}
+                              style={{
+                                background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+                                color: '#0f172a',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '4px 10px',
+                                fontWeight: 700,
+                                fontSize: '10px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🪄 Alinhar para Bull/Neutral
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-
-                  {activeTooltip === `short_${tier}_allowed_regimes` && (
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '100%',
-                      left: 0,
-                      right: 0,
-                      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                      border: '1px solid rgba(234,179,8,0.5)',
-                      borderRadius: '8px',
-                      padding: '12px 14px',
-                      zIndex: 100,
-                      marginBottom: '6px',
-                      boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
-                      color: '#cbd5e1',
-                      fontSize: '11px',
-                      lineHeight: '1.4'
-                    }}>
-                      <p style={{ margin: '0 0 6px 0', color: '#fde047', fontWeight: 700 }}>🔬 Recomendação de Regimes SHORT</p>
-                      <p style={{ margin: '0 0 10px 0' }}>O simulador shadow detectou que operar SHORT durante mercados de queda (Bear) aumenta o risco de repiques violentos e estocada de perdas. O ideal é operar apenas em Bull / Neutral.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleChange(`short_${tier}_allowed_regimes`, SHADOW_OPTIMAL[`short_${tier}_allowed_regimes`]);
-                          setActiveTooltip(null);
-                        }}
-                        style={{
-                          background: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
-                          color: '#0f172a',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '4px 10px',
-                          fontWeight: 700,
-                          fontSize: '10px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        🪄 Alinhar para Bull/Neutral
-                      </button>
-                    </div>
-                  )}
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                     {['bull', 'bear', 'neutral'].map(reg => {

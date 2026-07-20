@@ -377,8 +377,10 @@ export default function Shadow() {
                 <h2 style={{ color: '#f1f5f9', fontSize: '17px', fontWeight: 800, margin: 0 }}>
                   Tabela Recomendada de Calibração (LONG)
                 </h2>
-                <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0 0' }}>
-                  Compare estes números com o painel de <strong>Configurações</strong> para calibrar seu robô de forma lucrativa.
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                  Compare estes números com o painel de <strong>Configurações</strong>.
+                  <br />
+                  <span style={{ color: '#38bdf8' }}>💡 <strong>Por que Bear / Neutral?</strong></span> As simulações do Shadow detectaram que operar LONG em mercados de alta esticada (Bull) degrada a rentabilidade média porque o robô compra rompimentos tardios perto de topos locais. Operar em Bear/Lateral entra em fundos acumulativos sólidos com taxa de acerto expressiva.
                 </p>
               </div>
             </div>
