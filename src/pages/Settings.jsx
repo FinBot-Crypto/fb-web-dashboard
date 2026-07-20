@@ -412,6 +412,24 @@ export default function Settings() {
                   </label>
                 </div>
 
+                {/* Shadow Calibration Tips for LONG */}
+                <div style={{ 
+                  background: 'rgba(99,102,241,0.1)', 
+                  borderLeft: '3px solid #6366f1', 
+                  padding: '10px 12px', 
+                  borderRadius: '6px', 
+                  marginBottom: '16px', 
+                  fontSize: '12px', 
+                  color: '#a5b4fc',
+                  lineHeight: '1.4'
+                }}>
+                  💡 <strong>Dica Shadow:</strong> Para {tier === 'Major' ? 'Major' : tier === 'Strong Alt' ? 'Strong Alt' : 'High Volatility'}:
+                  <br />
+                  • Score recomendado: <strong>{tier === 'Major' ? '0.50' : tier === 'Strong Alt' ? '0.60' : '0.55'}</strong>
+                  <br />
+                  • RSI ideal: <strong>&lt;= {tier === 'Major' ? '30' : tier === 'Strong Alt' ? '32' : '25'}</strong>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={labelStyle}>Score Mínimo</label>
@@ -461,6 +479,21 @@ export default function Settings() {
                       style={inputStyle}
                     />
                   </div>
+                </div>
+
+                {/* Long Leverage Selection */}
+                <div style={{ marginTop: '12px' }}>
+                  <label style={labelStyle}>Alavancagem Futures (LONG)</label>
+                  <select 
+                    value={settings[`long_${tier}_leverage`] ?? 1}
+                    onChange={(e) => handleChange(`long_${tier}_leverage`, parseInt(e.target.value))}
+                    style={inputStyle}
+                  >
+                    <option value="1">1x (Sem alavancagem / Opera Spot)</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="5">5x</option>
+                  </select>
                 </div>
 
                 {/* Long Allowed Regimes Selection */}
@@ -517,6 +550,24 @@ export default function Settings() {
                   </label>
                 </div>
 
+                {/* Shadow Calibration Tips for SHORT */}
+                <div style={{ 
+                  background: 'rgba(239,68,68,0.1)', 
+                  borderLeft: '3px solid #ef4444', 
+                  padding: '10px 12px', 
+                  borderRadius: '6px', 
+                  marginBottom: '16px', 
+                  fontSize: '12px', 
+                  color: '#fca5a5',
+                  lineHeight: '1.4'
+                }}>
+                  💡 <strong>Dica Shadow:</strong> Para {tier === 'Major' ? 'Major' : tier === 'Strong Alt' ? 'Strong Alt' : 'High Volatility'}:
+                  <br />
+                  • Score recomendado: <strong>{tier === 'Major' ? '0.54' : tier === 'Strong Alt' ? '0.50' : '0.54'}</strong>
+                  <br />
+                  • RSI ideal: <strong>&gt;= {tier === 'Major' ? '65' : tier === 'Strong Alt' ? '65' : '70'}</strong>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={labelStyle}>Score Mínimo</label>
@@ -566,6 +617,21 @@ export default function Settings() {
                       style={inputStyle}
                     />
                   </div>
+                </div>
+
+                {/* Short Leverage Selection */}
+                <div style={{ marginTop: '12px' }}>
+                  <label style={labelStyle}>Alavancagem Futures (SHORT)</label>
+                  <select 
+                    value={settings[`short_${tier}_leverage`] ?? 2}
+                    onChange={(e) => handleChange(`short_${tier}_leverage`, parseInt(e.target.value))}
+                    style={{ ...inputStyle, border: '1px solid rgba(239,68,68,0.4)' }}
+                  >
+                    <option value="1">1x (Sem alavancagem / Margem cheia)</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="5">5x</option>
+                  </select>
                 </div>
 
                 {/* Short Allowed Regimes Selection */}
