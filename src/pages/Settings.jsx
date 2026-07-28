@@ -76,60 +76,83 @@ export default function Settings() {
     }));
   };
 
+  // Para inputs numéricos: guarda string bruta durante edição, converte só no save
+  const handleNumericChange = (key, rawValue) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: rawValue
+    }));
+  };
+
+  const toggleTooltip = (fieldKey) => {
+    setActiveTooltip(prev => prev === fieldKey ? null : fieldKey);
+  };
+
   const handleSave = () => {
-    // Validação de limites
+    // Converte valores de string para número antes de validar e enviar
+    const cleanedSettings = {};
     for (let k in settings) {
+      let v = settings[k];
+      // Converte strings numéricas para números
+      if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) {
+        v = Number(v);
+      }
+      cleanedSettings[k] = v;
+    }
+
+    // Validação de limites
+    for (let k in cleanedSettings) {
       if (k.endsWith('_min_score')) {
-        const val = parseFloat(settings[k]);
+        const val = parseFloat(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val >= 1.0) {
           setFeedback({ type: 'error', text: `O score mínimo para ${k.replace('long_', '').replace('short_', '').replace('_min_score', '')} deve ser um decimal entre 0.0 e 1.0 (ex: 0.70)` });
           return;
         }
       }
       if (k.endsWith('_sl') || k.endsWith('_tp')) {
-        const val = parseFloat(settings[k]);
+        const val = parseFloat(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val > 100) {
           setFeedback({ type: 'error', text: `Stop Loss / Take Profit para ${k} deve ser um valor numérico entre 0.1% e 100%` });
           return;
         }
       }
       if (k.endsWith('_max_rsi') || k.endsWith('_min_rsi')) {
-        const val = parseFloat(settings[k]);
+        const val = parseFloat(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val > 100) {
           setFeedback({ type: 'error', text: `O limite de RSI para ${k} deve ser um valor numérico entre 1 e 100` });
           return;
         }
       }
-      if (k.endsWith('_lev_2x_pct') || k.endsWith('_lev_3x_pct') || k.endswith('_lev_5x_pct')) {
-        const val = parseFloat(settings[k]);
+      if (k.endsWith('_lev_2x_pct') || k.endsWith('_lev_3x_pct') || k.endsWith('_lev_5x_pct')) {
+        const val = parseFloat(cleanedSettings[k]);
         if (isNaN(val) || val < 0.0 || val > 1.0) {
           setFeedback({ type: 'error', text: `O percentual de alavancagem progressiva para ${k} deve ser entre 0.00 e 1.00 (ex: 0.20)` });
           return;
         }
       }
       if (k === 'leme_max_consecutive_sl') {
-        const val = parseInt(settings[k]);
+        const val = parseInt(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val > 20) {
           setFeedback({ type: 'error', text: 'O limite de Stop Losses seguidos do Leme deve ser entre 1 e 20.' });
           return;
         }
       }
       if (k === 'leme_min_win_rate' || k === 'leme_shadow_min_winrate') {
-        const val = parseFloat(settings[k]);
+        const val = parseFloat(cleanedSettings[k]);
         if (isNaN(val) || val < 0 || val > 100) {
           setFeedback({ type: 'error', text: 'As taxas de win-rate do Leme devem ser entre 0% e 100%.' });
           return;
         }
       }
       if (k === 'leme_cooldown_hours') {
-        const val = parseInt(settings[k]);
+        const val = parseInt(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val > 720) {
           setFeedback({ type: 'error', text: 'O prazo de cooldown do Leme deve ser entre 1 e 720 horas.' });
           return;
         }
       }
       if (k === 'leme_shadow_min_trades') {
-        const val = parseInt(settings[k]);
+        const val = parseInt(cleanedSettings[k]);
         if (isNaN(val) || val <= 0 || val > 50) {
           setFeedback({ type: 'error', text: 'A quantidade mínima de trades shadow do Leme deve ser entre 1 e 50.' });
           return;
@@ -142,7 +165,7 @@ export default function Settings() {
     fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
+      body: JSON.stringify(cleanedSettings)
     })
       .then(res => {
         if (!res.ok) throw new Error('Falha ao salvar');
@@ -208,11 +231,13 @@ export default function Settings() {
 
   // Renderizador Inteligente de Input com Detector de Discrepância Shadow e Tooltip Explicativo + Ação Rápida
   const SmartField = ({ fieldKey, label, type = 'number', step = '0.01', min = '0.0', max = '100.0' }) => {
-    const currentValue = settings[fieldKey] ?? 0;
+    const rawValue = settings[fieldKey] ?? '';
+    const numericValue = parseFloat(rawValue);
+    const currentValue = isNaN(numericValue) ? 0 : numericValue;
     const optimalValue = SHADOW_OPTIMAL[fieldKey];
     
     // Identifica se há discrepância (se difere do ótimo recomendado pelos simuladores)
-    const isDiscrepant = optimalValue !== undefined && Math.abs(currentValue - optimalValue) > 0.001;
+    const isDiscrepant = optimalValue !== undefined && !isNaN(numericValue) && Math.abs(currentValue - optimalValue) > 0.001;
 
     // Explicações customizadas para as discrepâncias
     let rationale = '';
@@ -230,8 +255,7 @@ export default function Settings() {
           <label style={labelStyle}>{label}</label>
           {isDiscrepant && (
             <span 
-              onMouseEnter={() => setActiveTooltip(fieldKey)}
-              onMouseLeave={() => setActiveTooltip(null)}
+              onClick={() => toggleTooltip(fieldKey)}
               style={{
                 background: 'rgba(234,179,8,0.15)',
                 color: '#fde047',
@@ -254,8 +278,8 @@ export default function Settings() {
           step={step}
           min={min}
           max={max}
-          value={currentValue}
-          onChange={(e) => handleChange(fieldKey, parseFloat(e.target.value))}
+          value={rawValue}
+          onChange={(e) => handleNumericChange(fieldKey, e.target.value)}
           style={{
             ...inputStyle,
             border: isDiscrepant ? '1px solid rgba(234, 179, 8, 0.6)' : '1px solid rgba(71,85,105,0.6)',
@@ -401,7 +425,7 @@ export default function Settings() {
               min="1"
               max="20"
               value={settings.leme_max_consecutive_sl ?? 3}
-              onChange={(e) => handleChange('leme_max_consecutive_sl', parseInt(e.target.value))}
+              onChange={(e) => handleNumericChange('leme_max_consecutive_sl', e.target.value)}
               style={inputStyle}
             />
           </div>
@@ -413,7 +437,7 @@ export default function Settings() {
               min="10"
               max="100"
               value={settings.leme_min_win_rate ?? 50.0}
-              onChange={(e) => handleChange('leme_min_win_rate', parseFloat(e.target.value))}
+              onChange={(e) => handleNumericChange('leme_min_win_rate', e.target.value)}
               style={inputStyle}
             />
           </div>
@@ -425,7 +449,7 @@ export default function Settings() {
               min="1"
               max="720"
               value={settings.leme_cooldown_hours ?? 24}
-              onChange={(e) => handleChange('leme_cooldown_hours', parseInt(e.target.value))}
+              onChange={(e) => handleNumericChange('leme_cooldown_hours', e.target.value)}
               style={inputStyle}
             />
           </div>
@@ -437,7 +461,7 @@ export default function Settings() {
               min="1"
               max="50"
               value={settings.leme_shadow_min_trades ?? 5}
-              onChange={(e) => handleChange('leme_shadow_min_trades', parseInt(e.target.value))}
+              onChange={(e) => handleNumericChange('leme_shadow_min_trades', e.target.value)}
               style={inputStyle}
             />
           </div>
@@ -449,7 +473,7 @@ export default function Settings() {
               min="10"
               max="100"
               value={settings.leme_shadow_min_winrate ?? 60.0}
-              onChange={(e) => handleChange('leme_shadow_min_winrate', parseFloat(e.target.value))}
+              onChange={(e) => handleNumericChange('leme_shadow_min_winrate', e.target.value)}
               style={inputStyle}
             />
           </div>
@@ -576,7 +600,7 @@ export default function Settings() {
                       min="0.5"
                       max="20"
                       value={settings[`long_${tier}_sl`] ?? 3.0}
-                      onChange={(e) => handleChange(`long_${tier}_sl`, parseFloat(e.target.value))}
+                      onChange={(e) => handleNumericChange(`long_${tier}_sl`, e.target.value)}
                       style={inputStyle}
                     />
                   </div>
@@ -588,7 +612,7 @@ export default function Settings() {
                       min="0.5"
                       max="50"
                       value={settings[`long_${tier}_tp`] ?? 3.0}
-                      onChange={(e) => handleChange(`long_${tier}_tp`, parseFloat(e.target.value))}
+                      onChange={(e) => handleNumericChange(`long_${tier}_tp`, e.target.value)}
                       style={inputStyle}
                     />
                   </div>
@@ -607,7 +631,7 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`long_${tier}_lev_2x_pct`] ?? 0.20}
-                        onChange={(e) => handleChange(`long_${tier}_lev_2x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`long_${tier}_lev_2x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
@@ -619,7 +643,7 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`long_${tier}_lev_3x_pct`] ?? 0.50}
-                        onChange={(e) => handleChange(`long_${tier}_lev_3x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`long_${tier}_lev_3x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
@@ -631,20 +655,20 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`long_${tier}_lev_5x_pct`] ?? 0.80}
-                        onChange={(e) => handleChange(`long_${tier}_lev_5x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`long_${tier}_lev_5x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
                   </div>
 
                   <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0', lineHeight: '1.4' }}>
-                    • Score &lt; {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>1x (Spot)</strong>
+                    • Score &lt; {((parseFloat(settings[`long_${tier}_min_score`]) || 0.60) + (1.0 - (parseFloat(settings[`long_${tier}_min_score`]) || 0.60)) * (parseFloat(settings[`long_${tier}_lev_2x_pct`]) || 0.20)).toFixed(2)}: <strong>1x (Spot)</strong>
                     <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>2x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`long_${tier}_min_score`]) || 0.60) + (1.0 - (parseFloat(settings[`long_${tier}_min_score`]) || 0.60)) * (parseFloat(settings[`long_${tier}_lev_2x_pct`]) || 0.20)).toFixed(2)}: <strong>2x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_3x_pct`] ?? 0.50)).toFixed(2)}: <strong>3x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`long_${tier}_min_score`]) || 0.60) + (1.0 - (parseFloat(settings[`long_${tier}_min_score`]) || 0.60)) * (parseFloat(settings[`long_${tier}_lev_3x_pct`]) || 0.50)).toFixed(2)}: <strong>3x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`long_${tier}_min_score`] ?? 0.60) + (1.0 - (settings[`long_${tier}_min_score`] ?? 0.60)) * (settings[`long_${tier}_lev_5x_pct`] ?? 0.80)).toFixed(2)}: <strong>5x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`long_${tier}_min_score`]) || 0.60) + (1.0 - (parseFloat(settings[`long_${tier}_min_score`]) || 0.60)) * (parseFloat(settings[`long_${tier}_lev_5x_pct`]) || 0.80)).toFixed(2)}: <strong>5x isolated</strong>
                   </p>
                 </div>
 
@@ -654,8 +678,7 @@ export default function Settings() {
                     <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
                     {isLongRegimeDivergent && (
                       <span
-                        onMouseEnter={() => setActiveTooltip(`long_${tier}_allowed_regimes`)}
-                        onMouseLeave={() => setActiveTooltip(null)}
+                        onClick={() => toggleTooltip(`long_${tier}_allowed_regimes`)}
                         style={{
                           background: 'rgba(234,179,8,0.15)',
                           color: '#fde047',
@@ -784,7 +807,7 @@ export default function Settings() {
                       min="0.5"
                       max="20"
                       value={settings[`short_${tier}_sl`] ?? 3.0}
-                      onChange={(e) => handleChange(`short_${tier}_sl`, parseFloat(e.target.value))}
+                      onChange={(e) => handleNumericChange(`short_${tier}_sl`, e.target.value)}
                       style={inputStyle}
                     />
                   </div>
@@ -796,7 +819,7 @@ export default function Settings() {
                       min="0.5"
                       max="50"
                       value={settings[`short_${tier}_tp`] ?? 3.0}
-                      onChange={(e) => handleChange(`short_${tier}_tp`, parseFloat(e.target.value))}
+                      onChange={(e) => handleNumericChange(`short_${tier}_tp`, e.target.value)}
                       style={inputStyle}
                     />
                   </div>
@@ -815,7 +838,7 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`short_${tier}_lev_2x_pct`] ?? 0.20}
-                        onChange={(e) => handleChange(`short_${tier}_lev_2x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`short_${tier}_lev_2x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
@@ -827,7 +850,7 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`short_${tier}_lev_3x_pct`] ?? 0.50}
-                        onChange={(e) => handleChange(`short_${tier}_lev_3x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`short_${tier}_lev_3x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
@@ -839,20 +862,20 @@ export default function Settings() {
                         min="0.0"
                         max="1.0"
                         value={settings[`short_${tier}_lev_5x_pct`] ?? 0.80}
-                        onChange={(e) => handleChange(`short_${tier}_lev_5x_pct`, parseFloat(e.target.value))}
+                        onChange={(e) => handleNumericChange(`short_${tier}_lev_5x_pct`, e.target.value)}
                         style={{ ...inputStyle, padding: '4px 6px', fontSize: '12px' }}
                       />
                     </div>
                   </div>
 
                   <p style={{ color: '#cbd5e1', fontSize: '11px', margin: '4px 0 0 0', lineHeight: '1.4' }}>
-                    • Score &lt; {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>1x (Margem Cheia)</strong>
+                    • Score &lt; {((parseFloat(settings[`short_${tier}_min_score`]) || 0.50) + (1.0 - (parseFloat(settings[`short_${tier}_min_score`]) || 0.50)) * (parseFloat(settings[`short_${tier}_lev_2x_pct`]) || 0.20)).toFixed(2)}: <strong>1x (Margem Cheia)</strong>
                     <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_2x_pct`] ?? 0.20)).toFixed(2)}: <strong>2x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`short_${tier}_min_score`]) || 0.50) + (1.0 - (parseFloat(settings[`short_${tier}_min_score`]) || 0.50)) * (parseFloat(settings[`short_${tier}_lev_2x_pct`]) || 0.20)).toFixed(2)}: <strong>2x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_3x_pct`] ?? 0.50)).toFixed(2)}: <strong>3x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`short_${tier}_min_score`]) || 0.50) + (1.0 - (parseFloat(settings[`short_${tier}_min_score`]) || 0.50)) * (parseFloat(settings[`short_${tier}_lev_3x_pct`]) || 0.50)).toFixed(2)}: <strong>3x isolated</strong>
                     <br />
-                    • Score &gt;= {((settings[`short_${tier}_min_score`] ?? 0.50) + (1.0 - (settings[`short_${tier}_min_score`] ?? 0.50)) * (settings[`short_${tier}_lev_5x_pct`] ?? 0.80)).toFixed(2)}: <strong>5x isolated</strong>
+                    • Score &gt;= {((parseFloat(settings[`short_${tier}_min_score`]) || 0.50) + (1.0 - (parseFloat(settings[`short_${tier}_min_score`]) || 0.50)) * (parseFloat(settings[`short_${tier}_lev_5x_pct`]) || 0.80)).toFixed(2)}: <strong>5x isolated</strong>
                   </p>
                 </div>
 
@@ -862,9 +885,8 @@ export default function Settings() {
                     <label style={labelStyle}>Regimes Permitidos (Mercado)</label>
                     {isShortRegimeDivergent && (
                       <div 
-                        onMouseEnter={() => setActiveTooltip(`short_${tier}_allowed_regimes`)}
-                        onMouseLeave={() => setActiveTooltip(null)}
-                        style={{ display: 'inline-block', position: 'relative' }}
+                        onClick={() => toggleTooltip(`short_${tier}_allowed_regimes`)}
+                        style={{ display: 'inline-block', position: 'relative', cursor: 'pointer' }}
                       >
                         <span
                           style={{
